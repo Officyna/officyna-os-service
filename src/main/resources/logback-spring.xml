@@ -8,7 +8,8 @@
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
 
             <includeMdcKeyName>correlationId</includeMdcKeyName>
-
+            <includeMdcKeyName>httpMethod</includeMdcKeyName>
+            <includeMdcKeyName>requestUri</includeMdcKeyName>
         </encoder>
 
     </appender>

@@ -40,7 +40,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        logger.info("Processing authentication for ");
+        logger.info("Processing authentication for [{} {}]", request.getMethod(), request.getRequestURI());
 
         String authHeader = request.getHeader("Authorization");
 
@@ -92,9 +92,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (UsernameNotFoundException | JwtException e) {
-            logger.warn("Falha na autenticação JWT: {}", e.getMessage());
+            logger.warn("Falha na autenticação JWT em [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
+            request.setAttribute("auth_error_message", e.getMessage());
         } catch (Exception e) {
-            logger.error("Erro inesperado durante processamento do token JWT: {}", e.getMessage(), e);
+            logger.error("Erro inesperado durante processamento do token JWT em [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage(), e);
+            request.setAttribute("auth_error_message", "Unexpected authentication error");
         }
 
         filterChain.doFilter(request, response);

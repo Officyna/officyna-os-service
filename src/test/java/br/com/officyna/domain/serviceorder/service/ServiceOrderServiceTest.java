@@ -409,7 +409,7 @@ class ServiceOrderServiceTest {
 
         assertThatThrownBy(() -> service.updateStatus("123", ServiceOrderStatus.ENTREGUE))
                 .isInstanceOf(ServiceOrderBusinessException.class)
-                .hasMessageContaining("Apenas ordes FINALIZADAS podem ser consideradas entregues");
+                .hasMessageContaining("Apenas ordens FINALIZADAS podem ser consideradas entregues");
     }
 
     // ─────────────── startLabor ───────────────
