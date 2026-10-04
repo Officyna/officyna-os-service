@@ -18,17 +18,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final Map<String, UserDetails> inMemoryUsers = new ConcurrentHashMap<>();
 
+    // TODO: Substituir pela consulta ao serviço de usuarios
     public UserDetailsServiceImpl(PasswordEncoder passwordEncoder) {
         inMemoryUsers.put("admin@email.com", new User(
                 "admin@email.com",
                 passwordEncoder.encode("admin123"),
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
-        ));
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
         inMemoryUsers.put("atendente@email.com", new User(
                 "atendente@email.com",
                 passwordEncoder.encode("atendente123"),
-                List.of(new SimpleGrantedAuthority("ROLE_ATTENDANT"))
-        ));
+                List.of(new SimpleGrantedAuthority("ROLE_ATTENDANT"))));
     }
 
     @Override
