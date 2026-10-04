@@ -6,6 +6,10 @@ public class CustomerNotFoundException extends RuntimeException {
         super(message);
     }
 
+    public CustomerNotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
     public static CustomerNotFoundException of(Object id) {
         return new CustomerNotFoundException("Customer not found with id: " + id);
     }

@@ -101,7 +101,7 @@ public class ServiceOrder {
             this.validateLaborsForFinishServiceOrder();
         }else if(status.equals(ServiceOrderStatus.ENTREGUE)){
             if (!ServiceOrderStatus.FINALIZADA.equals(this.status)) {
-                throw new ServiceOrderBusinessException("Apenas ordes FINALIZADAS podem ser consideradas entregues");
+                throw new ServiceOrderBusinessException("Apenas ordens FINALIZADAS podem ser consideradas entregues");
             }
         }else if(status.equals(ServiceOrderStatus.RECUSADA)){
             if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(this.status)) {
@@ -116,21 +116,26 @@ public class ServiceOrder {
         List<LaborDetailDTO> labors = this.getLabors().getLaborsDetails().stream()
                 .filter(item->item.getSituation()!= LaborSituation.REJEITADO)
                 .toList();
+        List<String> openLabors = new java.util.ArrayList<>();
         labors.forEach(item -> {
             if (item.getStartDate() == null || item.getEndDate() == null) {
-                throw new ServiceOrderBusinessException("Não é possível finalizar ordem com serviços em aberto");
+                openLabors.add(item.getLaborId() != null ? item.getLaborId() : "desconhecido");
             }
         });
+        if (!openLabors.isEmpty()) {
+            throw new ServiceOrderBusinessException("Não é possível finalizar ordem com serviços em aberto. Serviços pendentes: " + openLabors);
+        }
     }
 
     private void validateLaborsForAProvalStatus(){
         if(this.getLabors() !=null && this.getLabors().getLaborsDetails() != null){
-            this.getLabors().getLaborsDetails()
-                    .forEach(item -> {
-                        if(item.getSituation().equals(LaborSituation.PENDENTE)){
-                            throw  new ServiceOrderBusinessException("Todos os serviços devem ser analisados e rejeitados ou aprovados");
-                        }
-                    });
+            List<String> pendingLabors = this.getLabors().getLaborsDetails().stream()
+                    .filter(item -> LaborSituation.PENDENTE.equals(item.getSituation()))
+                    .map(item -> item.getLaborId() != null ? item.getLaborId() : "desconhecido")
+                    .toList();
+            if (!pendingLabors.isEmpty()) {
+                throw new ServiceOrderBusinessException("Todos os serviços devem ser analisados e rejeitados ou aprovados. Serviços pendentes: " + pendingLabors);
+            }
         } else{
             throw new ServiceOrderBusinessException("A O.S precisa ter ao menos um serviço");
         }

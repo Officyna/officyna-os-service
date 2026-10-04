@@ -1,5 +1,7 @@
 package br.com.officyna.infrastructure.config;
 
+import br.com.officyna.infrastructure.security.CustomAccessDeniedHandler;
+import br.com.officyna.infrastructure.security.CustomAuthenticationEntryPoint;
 import br.com.officyna.infrastructure.security.JwtAuthenticationFilter;
 import br.com.officyna.infrastructure.security.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +27,18 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsServiceImpl userDetailsService;
     private final PasswordEncoder passwordEncoder;
+    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
@@ -39,6 +47,8 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/api-docs",
                                 "/actuator/health",
+                                "/api/serviceorder/customer/**",
+                                "/api/serviceorder/aproval-labors/**",
                                 "/api/v1/customer-service-orders/**"
                         ).permitAll()
                         .anyRequest().authenticated()

@@ -4,6 +4,7 @@ import br.com.officyna.domain.customer.entity.Customer;
 import br.com.officyna.domain.serviceorder.exception.ServiceOrderBusinessException;
 import br.com.officyna.domain.serviceorder.exception.ServiceOrderNotFoundException;
 import br.com.officyna.api.serviceorder.resources.ModifySituationRequest;
+import br.com.officyna.domain.serviceorder.dto.LaborDetailDTO;
 import br.com.officyna.domain.serviceorder.entity.ServiceOrder;
 import br.com.officyna.domain.serviceorder.enums.LaborSituation;
 import br.com.officyna.domain.serviceorder.enums.ServiceOrderStatus;
@@ -105,8 +106,22 @@ public class CustomerServiceOrderService {
                     request.stream()
                             .collect(Collectors.toMap(
                                     ModifySituationRequest::laborId,
-                                    ModifySituationRequest::situation
+                                    ModifySituationRequest::situation,
+                                    (existing, replacement) -> replacement
                             ));
+
+            List<String> existingLaborIds = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
+                    ? entity.getLabors().getLaborsDetails().stream().map(LaborDetailDTO::getLaborId).toList()
+                    : List.of();
+
+            List<String> unknownLabors = laborsToUpdateMap.keySet().stream()
+                    .filter(laborId -> !existingLaborIds.contains(laborId))
+                    .toList();
+
+            if (!unknownLabors.isEmpty()) {
+                log.warn("Attempt to update unknown labor(s) on service order {}: {}", serviceOrderId, unknownLabors);
+                throw new ServiceOrderNotFoundException("Serviço(s) não encontrado(s) na Ordem de Serviço: " + unknownLabors);
+            }
 
             log.debug(
                     "Updating {} labor situations for service order: {}",

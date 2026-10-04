@@ -6,6 +6,10 @@ public class ServiceOrderNotFoundException extends RuntimeException {
         super(message);
     }
 
+    public ServiceOrderNotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
     public static ServiceOrderNotFoundException of(Object id) {
         return new ServiceOrderNotFoundException("Service Order not found with id: " + id);
     }

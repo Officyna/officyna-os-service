@@ -22,17 +22,18 @@ public class CustomerAndMecnichalService {
 
         log.debug("Customer found by id: {}", id);
 
+        var address = customer.getAddress();
         return new CustomerDTO(
                 customer.getId(),
                 customer.getName(),
                 customer.getPhone(),
-                customer.getAddress().getStreet(),
-                customer.getAddress().getNumber(),
-                customer.getAddress().getNeighborhood(),
-                customer.getAddress().getCity(),
-                customer.getAddress().getState(),
-                customer.getAddress().getZipCode(),
-                customer.getAddress().getComplement()
+                address != null ? address.getStreet() : null,
+                address != null ? address.getNumber() : null,
+                address != null ? address.getNeighborhood() : null,
+                address != null ? address.getCity() : null,
+                address != null ? address.getState() : null,
+                address != null ? address.getZipCode() : null,
+                address != null ? address.getComplement() : null
         );
     }
 

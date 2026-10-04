@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.repository.query.Param;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.ErrorResponse;
+import br.com.officyna.infrastructure.exception.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
