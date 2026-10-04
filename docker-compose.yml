@@ -2,16 +2,16 @@ services:
 
   mongodb:
     image: mongo:7
-    container_name: officyna-mongodb
+    container_name: officyna-os-service-mongodb
     environment:
       MONGO_INITDB_DATABASE: officyna
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
       - ./db-seed:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,14 +20,14 @@ services:
       - officyna-network
 
   mongo-express:
-    image: mongo-express
-    container_name: officyna-mongo-express
+    image: mongo-express:1.0.2
+    container_name: officyna-os-service-mongo-express
     environment:
       ME_CONFIG_MONGODB_SERVER: mongodb
       ME_CONFIG_BASICAUTH_USERNAME: admin
       ME_CONFIG_BASICAUTH_PASSWORD: admin
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -39,11 +39,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: officyna-app
+    container_name: officyna-os-service-app
     depends_on:
       mongodb:
         condition: service_healthy
     environment:
+      # Server
+      SERVER_PORT: 8080
       # Database
       MONGODB_URI: mongodb://mongodb:27017/officyna
       # JWT
@@ -54,7 +56,7 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
       interval: 30s
       timeout: 10s
       start_period: 40s
@@ -64,18 +66,15 @@ services:
       - officyna-network
 
   kong:
-    image: kong:latest
-    container_name: kong-gateway
+    image: kong:3.8
+    container_name: officyna-os-service-kong-gateway
     restart: on-failure
     depends_on:
       app:
-       condition: service_healthy
+        condition: service_healthy
     environment:
       KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
-      KONG_DATABASE: off
-      KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kong
-      KONG_PG_DATABASE: kong
+      KONG_DATABASE: "off"
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
@@ -84,33 +83,35 @@ services:
       KONG_ADMIN_GUI_URL: http://localhost:8002
     ports:
       - "8000:8000"
-      - "8001:8001"
-      - "8002:8002"
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8002:8002"
     networks:
       - officyna-network
     volumes:
       - ./kong.yml:/kong/declarative/kong.yml
 
-#  sonarqube:
-#    image: sonarqube:community
-#    container_name: officyna-sonarqube
-#    environment:
-#      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-#    ports:
-#      - "9000:9000"
-#    volumes:
-#      - sonar_data:/opt/sonarqube/data
-#      - sonar_extensions:/opt/sonarqube/extensions
-#      - sonar_logs:/opt/sonarqube/logs
-#    restart: unless-stopped
-#    networks:
-#      - officyna-network
+  sonarqube:
+    image: sonarqube:community
+    container_name: officyna-sonarqube
+    profiles:
+      - sonar
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+      - sonar_logs:/opt/sonarqube/logs
+    restart: unless-stopped
+    networks:
+      - officyna-network
 
 volumes:
   mongo_data:
-#  sonar_data:
-#  sonar_extensions:
-#  sonar_logs:
+  sonar_data:
+  sonar_extensions:
+  sonar_logs:
 
 networks:
   officyna-network:

@@ -6,7 +6,7 @@ if (!adminExists) {
     db.users.insertOne({
         name: 'Administrador',
         email: 'admin@officyna.com',
-        password: '$2a$12$h1MbmnYDyKvQajySFEs0YONMFrg0D1.Yj.yUZuyvGD045GDGQQtoq',
+        password: '$2a$10$/9mUYeaeYYBseqldjp5Yaem4vYeEbQQGvKZjfaEuQoPm0vzzd5ra.',
         userRole: 'ADMIN',
         active: true,
         createdAt: new Date(),
