@@ -53,6 +53,8 @@ services:
       JWT_EXPIRATION: 86400000
       # Spring profile
       SPRING_PROFILES_ACTIVE: default
+      # Production Service
+      PRODUCTION_SERVICE_URL: ${PRODUCTION_SERVICE_URL:-http://officyna-production-service:8080}
     ports:
       - "8080:8080"
     healthcheck:
