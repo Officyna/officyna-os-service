@@ -279,16 +279,26 @@ public class ServiceOrderService {
 
         if (supplyIdList != null) {
             for (SupplysRequest req : supplyIdList) {
+                int quantity = req.getQuantity() != null ? req.getQuantity() : 1;
+                BigDecimal unitPrice = req.getUnitPrice() != null ? req.getUnitPrice() : BigDecimal.ZERO;
+                BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
+
                 current.add(SupplyDetailDTO.builder()
                         .id(req.getId())
-                        .quantity(req.getQuantity() != null ? req.getQuantity() : 1)
-                        .unitPrice(BigDecimal.ZERO)
-                        .totalPrice(BigDecimal.ZERO)
+                        .name(req.getName())
+                        .description(req.getDescription())
+                        .quantity(quantity)
+                        .unitPrice(unitPrice)
+                        .totalPrice(totalPrice)
                         .build());
             }
         }
 
-        entity.setSupplys(new SupplyDTO(current, BigDecimal.ZERO));
+        BigDecimal totalSupplyAmount = current.stream()
+                .map(s -> s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        entity.setSupplys(new SupplyDTO(current, totalSupplyAmount));
 
         ServiceOrder saved = this.save(entity);
 
@@ -315,7 +325,12 @@ public class ServiceOrderService {
         if (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null) {
             List<SupplyDetailDTO> current = new ArrayList<>(entity.getSupplys().getSupplysDetails());
             current.removeIf(supply -> supply.getId().equals(supplyId));
-            entity.setSupplys(new SupplyDTO(current, BigDecimal.ZERO));
+
+            BigDecimal totalSupplyAmount = current.stream()
+                    .map(s -> s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            entity.setSupplys(new SupplyDTO(current, totalSupplyAmount));
         }
 
         ServiceOrder saved = this.save(entity);

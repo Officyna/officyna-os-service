@@ -133,7 +133,7 @@ public interface ServiceOrderApi {
             @Parameter(description = "Service order ID") @PathVariable String id,
             @Parameter(description = "Labor ID") @PathVariable String laborId);
 
-    @PutMapping("/{id}/add-supply")
+    @RequestMapping(value = "/{id}/add-supply", method = {RequestMethod.PATCH, RequestMethod.PUT})
     @Operation(summary = "Add supplys to a Service order")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Supplys added to the service order")
@@ -162,7 +162,7 @@ public interface ServiceOrderApi {
     ResponseEntity<Void> deleteServiceOrder(
             @Parameter(description = "Service order ID") @PathVariable String id);
 
-    @PutMapping("/{id}/start-labor/{laborId}")
+    @RequestMapping(value = "/{id}/start-labor/{laborId}", method = {RequestMethod.PATCH, RequestMethod.PUT})
     @Operation(summary = "Start a labor in a Service order")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Labor started in the service order")
@@ -171,7 +171,7 @@ public interface ServiceOrderApi {
             @Parameter(description = "Service order ID") @PathVariable String id,
             @Parameter(description = "Labor ID") @PathVariable String laborId);
 
-    @PutMapping("/{id}/finish-labor/{laborId}")
+    @RequestMapping(value = "/{id}/finish-labor/{laborId}", method = {RequestMethod.PATCH, RequestMethod.PUT})
     @Operation(summary = "Finish a labor in a Service order")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Labor finished in the service order")

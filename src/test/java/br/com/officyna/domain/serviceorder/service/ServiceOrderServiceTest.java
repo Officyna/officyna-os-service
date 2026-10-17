@@ -330,6 +330,35 @@ class ServiceOrderServiceTest {
         assertThat(result.getSupplys().getSupplysDetails()).hasSize(1);
     }
 
+    @Test
+    @DisplayName("addSupplyFromServiceOrder deve calcular preco unitario, total e totalSupplyAmount")
+    void addSupplyFromServiceOrder_ShouldCalculateAmountsCorrectly() {
+        ServiceOrder entity = buildEntity("id-1", ServiceOrderStatus.RECEBIDA);
+        entity.setSupplys(null);
+
+        when(repository.findById("id-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        SupplysRequest request = SupplysRequest.builder()
+                .id("sup-1")
+                .name("Oleo")
+                .description("Oleo 5w30")
+                .quantity(3)
+                .unitPrice(new BigDecimal("50.00"))
+                .build();
+
+        ServiceOrder result = service.addSupplyFromServiceOrder("id-1", List.of(request));
+
+        assertThat(result.getSupplys().getSupplysDetails()).hasSize(1);
+        SupplyDetailDTO detail = result.getSupplys().getSupplysDetails().get(0);
+        assertThat(detail.getName()).isEqualTo("Oleo");
+        assertThat(detail.getDescription()).isEqualTo("Oleo 5w30");
+        assertThat(detail.getQuantity()).isEqualTo(3);
+        assertThat(detail.getUnitPrice()).isEqualByComparingTo("50.00");
+        assertThat(detail.getTotalPrice()).isEqualByComparingTo("150.00");
+        assertThat(result.getSupplys().getTotalSupplyAmount()).isEqualByComparingTo("150.00");
+    }
+
     // ─────────────── removeSupplyFromServiceOrder ───────────────
 
     @Test
