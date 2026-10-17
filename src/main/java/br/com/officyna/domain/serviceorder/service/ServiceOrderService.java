@@ -24,15 +24,18 @@ public class ServiceOrderService {
     private final ServiceOrderRepository repository;
     private final CustomerAndMecnichalService customerAndMecnichalService;
     private final VehicleSelectionService vehicleSelectionService;
+    private final LaborSelectionService laborSelectionService;
     private final ServiceOrderMapper mapper;
 
     public ServiceOrderService(ServiceOrderRepository repository,
                                CustomerAndMecnichalService customerAndMecnichalService,
                                VehicleSelectionService vehicleSelectionService,
+                               LaborSelectionService laborSelectionService,
                                ServiceOrderMapper mapper) {
         this.repository = repository;
         this.customerAndMecnichalService = customerAndMecnichalService;
         this.vehicleSelectionService = vehicleSelectionService;
+        this.laborSelectionService = laborSelectionService;
         this.mapper = mapper;
     }
 
@@ -112,19 +115,21 @@ public class ServiceOrderService {
     public ServiceOrder createServiceOrder(NewServiceOrderRequest request) {
         log.info("Creating new service order for customer id: {}", request.getCustomerId());
 
-        LaborsDTO labors = (request.getLaborIds() != null && !request.getLaborIds().isEmpty())
-                ? new LaborsDTO(
-                        request.getLaborIds().stream()
-                                .map(l -> LaborDetailDTO.builder()
-                                        .laborId(l.getId())
-                                        .situation(LaborSituation.PENDENTE)
-                                        .build())
-                                .collect(Collectors.toList()),
-                        BigDecimal.ZERO
-                )
-                : new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO);
+        List<LaborDetailDTO> laborDetails = new ArrayList<>();
+        if (request.getLaborIds() != null && !request.getLaborIds().isEmpty()) {
+            for (LaborsRequest req : request.getLaborIds()) {
+                LaborDetailDTO snapshot = laborSelectionService.getLaborSnapshot(req.getId());
+                laborDetails.add(snapshot);
+            }
+        }
 
-        log.debug("Labors selected successfully for customer id: {}", request.getCustomerId());
+        BigDecimal totalLaborsAmount = laborDetails.stream()
+                .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        LaborsDTO labors = new LaborsDTO(laborDetails, totalLaborsAmount);
+
+        log.debug("Labors snapshot captured successfully for customer id: {}", request.getCustomerId());
 
         CustomerDTO customer = customerAndMecnichalService.getCustomer(
                 request.getCustomerId()
@@ -146,6 +151,7 @@ public class ServiceOrderService {
         );
 
         entity.setStatus(ServiceOrderStatus.RECEBIDA);
+        entity.setTotalBudgetAmount(totalLaborsAmount);
 
         ServiceOrder saved = this.save(entity);
 
@@ -213,14 +219,16 @@ public class ServiceOrderService {
 
         if (laborsIdList != null) {
             for (LaborsRequest req : laborsIdList) {
-                current.add(LaborDetailDTO.builder()
-                        .laborId(req.getId())
-                        .situation(LaborSituation.PENDENTE)
-                        .build());
+                LaborDetailDTO snapshot = laborSelectionService.getLaborSnapshot(req.getId());
+                current.add(snapshot);
             }
         }
 
-        entity.setLabors(new LaborsDTO(current, BigDecimal.ZERO));
+        BigDecimal totalLaborsAmount = current.stream()
+                .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        entity.setLabors(new LaborsDTO(current, totalLaborsAmount));
 
         ServiceOrder saved = this.save(entity);
 
@@ -247,7 +255,12 @@ public class ServiceOrderService {
         if (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null) {
             List<LaborDetailDTO> laborsDetails = new ArrayList<>(entity.getLabors().getLaborsDetails());
             laborsDetails.removeIf(labor -> labor.getLaborId().equals(laborId));
-            entity.setLabors(new LaborsDTO(laborsDetails, BigDecimal.ZERO));
+
+            BigDecimal totalLaborsAmount = laborsDetails.stream()
+                    .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            entity.setLabors(new LaborsDTO(laborsDetails, totalLaborsAmount));
         }
 
         ServiceOrder saved = this.save(entity);
