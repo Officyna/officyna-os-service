@@ -13,3 +13,7 @@ data:
   LOG_LEVEL_SECURITY: "INFO"
   DATABASE_SEED_ENABLED: "true"
   PRODUCTION_SERVICE_URL: "http://officyna-production-service"
+  AWS_REGION: "us-east-1"
+  AWS_SQS_INBOUND_QUEUE: "os-service-queue"
+  AWS_SQS_PRODUCTION_QUEUE: "production-service-queue"
+

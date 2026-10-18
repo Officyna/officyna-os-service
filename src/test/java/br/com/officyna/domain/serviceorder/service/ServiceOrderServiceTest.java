@@ -46,6 +46,9 @@ class ServiceOrderServiceTest {
     @Mock
     private LaborSelectionService laborSelectionService;
 
+    @Mock
+    private br.com.officyna.domain.serviceorder.gateway.ServiceOrderEventPublisherGateway eventPublisherGateway;
+
     @InjectMocks
     private ServiceOrderService service;
 
@@ -230,6 +233,7 @@ class ServiceOrderServiceTest {
         assertThat(result).isEqualTo(entity);
         verify(laborSelectionService).getLaborSnapshot("lab-1");
         verify(repository).save(entity);
+        verify(eventPublisherGateway).publishForDiagnostics(entity.getId());
     }
 
     // ─────────────── updateServiceOrder ───────────────
@@ -620,4 +624,65 @@ class ServiceOrderServiceTest {
         assertThat(result).isEqualTo(entity);
         verify(repository).save(entity);
     }
+
+    // ─────────────── startDiagnosis ───────────────
+
+    @Test
+    @DisplayName("startDiagnosis deve transicionar para EM_DIAGNOSTICO e associar mecanico")
+    void startDiagnosis_ShouldTransitionToEmDiagnosticoAndAssignMechanic() {
+        ServiceOrder entity = buildEntity("so-1", ServiceOrderStatus.RECEBIDA);
+        MechanicDTO mechanic = new MechanicDTO("mech-1", "Carlos");
+
+        when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+        when(customerAndMecnichalService.getMechanic("mech-1")).thenReturn(mechanic);
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.startDiagnosis("so-1", "mech-1");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.EM_DIAGNOSTICO);
+        assertThat(result.getMechanic()).isEqualTo(mechanic);
+        verify(repository).save(entity);
+    }
+
+    @Test
+    @DisplayName("startDiagnosis sem mecanico deve apenas transicionar status")
+    void startDiagnosis_WithoutMechanic_ShouldOnlyTransitionStatus() {
+        ServiceOrder entity = buildEntity("so-1", ServiceOrderStatus.RECEBIDA);
+
+        when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.startDiagnosis("so-1", null);
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.EM_DIAGNOSTICO);
+        verify(customerAndMecnichalService, never()).getMechanic(any());
+        verify(repository).save(entity);
+    }
+
+    // ─────────────── applyBudget ───────────────
+
+    @Test
+    @DisplayName("applyBudget deve atualizar valores e transicionar para AGUARDANDO_APROVACAO")
+    void applyBudget_ShouldSetAmountsAndTransitionToAguardandoAprovacao() {
+        ServiceOrder entity = buildEntity("so-1", ServiceOrderStatus.EM_DIAGNOSTICO);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-1",
+                new BigDecimal("200.00"),
+                new BigDecimal("150.00"),
+                new BigDecimal("350.00")
+        );
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        assertThat(result.getTotalBudgetAmount()).isEqualTo(new BigDecimal("350.00"));
+        assertThat(result.getLabors().getTotalLaborsAmount()).isEqualTo(new BigDecimal("200.00"));
+        assertThat(result.getSupplys().getTotalSupplyAmount()).isEqualTo(new BigDecimal("150.00"));
+        verify(repository).save(entity);
+    }
 }
+

@@ -16,6 +16,7 @@ import br.com.officyna.domain.serviceorder.mapper.ServiceOrderMapper;
 import br.com.officyna.domain.serviceorder.presenter.ServiceOrderPresenter;
 import br.com.officyna.domain.serviceorder.repository.ServiceOrderRepository;
 import br.com.officyna.domain.serviceorder.gateway.ProductionLaborGateway;
+import br.com.officyna.domain.serviceorder.gateway.ServiceOrderEventPublisherGateway;
 import br.com.officyna.domain.serviceorder.service.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -73,13 +74,15 @@ public class PersistenceBeanConfig {
                                                    CustomerAndMecnichalService customerAndMecnichalService,
                                                    VehicleSelectionService vehicleSelectionService,
                                                    LaborSelectionService laborSelectionService,
-                                                   ServiceOrderMapper mapper) {
+                                                   ServiceOrderMapper mapper,
+                                                   ServiceOrderEventPublisherGateway eventPublisherGateway) {
         return new ServiceOrderService(
                 serviceOrderRepository,
                 customerAndMecnichalService,
                 vehicleSelectionService,
                 laborSelectionService,
-                mapper
+                mapper,
+                eventPublisherGateway
         );
     }
 
