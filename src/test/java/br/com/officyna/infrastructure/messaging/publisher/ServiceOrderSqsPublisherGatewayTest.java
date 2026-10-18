@@ -107,7 +107,7 @@ class ServiceOrderSqsPublisherGatewayTest {
 
         assertThatThrownBy(() -> gateway.publishForDiagnostics("so-fail"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Error publishing eventForDiagnostics to SQS");
+                .hasMessageContaining("Erro ao publicar eventForDiagnostics no SQS");
     }
 
     @Test
@@ -122,7 +122,7 @@ class ServiceOrderSqsPublisherGatewayTest {
 
         assertThatThrownBy(() -> gateway.publishForDiagnostics("so-json-fail"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Error serializing eventForDiagnostics message");
+                .hasMessageContaining("Erro ao serializar mensagem do tipo eventForDiagnostics");
     }
 
     @Test

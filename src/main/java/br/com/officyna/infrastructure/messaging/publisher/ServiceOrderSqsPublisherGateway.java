@@ -38,7 +38,7 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
 
     @Override
     public void publishForDiagnostics(String serviceOrderId) {
-        log.info("Publishing eventForDiagnostics for serviceOrderId={} to production queue: {}",
+        log.info("Publicando eventForDiagnostics para serviceOrderId={} na fila de produção: {}",
                 serviceOrderId, productionQueue);
         publishEvent(
                 productionQueue,
@@ -48,7 +48,7 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
     }
 
     public void publishEvent(String targetQueue, String eventType, Object payload) {
-        log.info("Publishing event {} to queue {}", eventType, targetQueue);
+        log.info("Publicando evento {} na fila {}", eventType, targetQueue);
 
         try {
             String messageBody = objectMapper.writeValueAsString(payload);
@@ -67,20 +67,20 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
 
             sqsClient.sendMessage(request);
 
-            log.info("Event {} published successfully to queueUrl={}", eventType, queueUrl);
+            log.info("Evento {} publicado com sucesso na queueUrl={}", eventType, queueUrl);
 
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize message payload for eventType={}", eventType, e);
-            throw new RuntimeException("Error serializing " + eventType + " message", e);
+            log.error("Falha ao serializar payload da mensagem para eventType={}", eventType, e);
+            throw new RuntimeException("Erro ao serializar mensagem do tipo " + eventType, e);
         } catch (Exception e) {
-            log.error("Failed to publish event {} to SQS queue {}", eventType, targetQueue, e);
-            throw new RuntimeException("Error publishing " + eventType + " to SQS", e);
+            log.error("Falha ao publicar evento {} na fila SQS {}", eventType, targetQueue, e);
+            throw new RuntimeException("Erro ao publicar " + eventType + " no SQS", e);
         }
     }
 
     private String resolveQueueUrl(String queueNameOrUrl) {
         if (queueNameOrUrl == null || queueNameOrUrl.isBlank()) {
-            throw new IllegalArgumentException("Queue name or URL must not be empty");
+            throw new IllegalArgumentException("Nome ou URL da fila não deve ser vazio");
         }
 
         if (queueNameOrUrl.startsWith("http://") || queueNameOrUrl.startsWith("https://")) {
@@ -88,7 +88,7 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
         }
 
         return resolvedQueueUrls.computeIfAbsent(queueNameOrUrl, name -> {
-            log.debug("Resolving SQS queue URL for queue name: {}", name);
+            log.debug("Resolvendo URL da fila SQS para o nome: {}", name);
             return sqsClient.getQueueUrl(GetQueueUrlRequest.builder().queueName(name).build()).queueUrl();
         });
     }

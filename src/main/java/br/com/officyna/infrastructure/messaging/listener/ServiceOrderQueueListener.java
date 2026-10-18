@@ -56,13 +56,13 @@ public class ServiceOrderQueueListener {
                     .build());
 
             if (response.hasMessages() && !response.messages().isEmpty()) {
-                log.info("Received {} message(s) from SQS queue: {}", response.messages().size(), queueName);
+                log.info("Recebida(s) {} mensagem(ns) da fila SQS: {}", response.messages().size(), queueName);
                 for (Message msg : response.messages()) {
                     processSingleMessage(queueUrl, msg);
                 }
             }
         } catch (Exception e) {
-            log.warn("Error polling SQS queue {}: {}", queueName, e.getMessage());
+            log.warn("Erro ao consultar fila SQS {}: {}", queueName, e.getMessage());
         }
     }
 
@@ -73,7 +73,7 @@ public class ServiceOrderQueueListener {
                 eventType = msg.messageAttributes().get(EVENT_TYPE_HEADER).stringValue();
             }
 
-            log.info("Processing SQS message id={}, eventType={}", msg.messageId(), eventType);
+            log.info("Processando mensagem SQS id={}, eventType={}", msg.messageId(), eventType);
             dispatch(eventType, msg.body());
 
             sqsClient.deleteMessage(DeleteMessageRequest.builder()
@@ -81,16 +81,16 @@ public class ServiceOrderQueueListener {
                     .receiptHandle(msg.receiptHandle())
                     .build());
 
-            log.info("SQS message id={} processed and acknowledged successfully", msg.messageId());
+            log.info("Mensagem SQS id={} processada e confirmada com sucesso", msg.messageId());
         } catch (Exception e) {
-            log.error("Failed to process message id={} with eventType={} from queue {}. Body: {}",
+            log.error("Falha ao processar mensagem id={} com eventType={} da fila {}. Conteúdo: {}",
                     msg.messageId(), eventType, queueName, msg.body(), e);
         }
     }
 
     public void dispatch(String eventType, String body) throws JsonProcessingException {
         if (eventType == null || eventType.isBlank()) {
-            throw new IllegalArgumentException("Message attribute 'eventType' is missing or empty");
+            throw new IllegalArgumentException("Atributo de mensagem 'eventType' está ausente ou vazio");
         }
 
         switch (eventType) {
@@ -99,7 +99,7 @@ public class ServiceOrderQueueListener {
                 serviceOrderService.startDiagnosis(message.getServiceOrderId(), message.getMechanicId());
             }
             case "eventDiagnosisCompleted" -> {
-                log.info("Ignoring eventDiagnosisCompleted - this event is processed exclusively by billing-service.");
+                log.info("Ignorando eventDiagnosisCompleted - este evento é processado exclusivamente pelo billing-service.");
             }
             case "eventBugetGenerated", "eventBudgetGenerated" -> {
                 BudgetGeneratedEventMessage message = objectMapper.readValue(body, BudgetGeneratedEventMessage.class);
@@ -114,13 +114,13 @@ public class ServiceOrderQueueListener {
                 PaymentConfirmedEventMessage message = objectMapper.readValue(body, PaymentConfirmedEventMessage.class);
                 serviceOrderService.updateStatus(message.getServiceOrderId(), ServiceOrderStatus.APROVADA);
             }
-            default -> log.warn("Unrecognized eventType: {} in message from queue {}", eventType, queueName);
+            default -> log.warn("eventType não reconhecido: {} na mensagem da fila {}", eventType, queueName);
         }
     }
 
     private String resolveQueueUrl(String target) {
         if (target == null || target.isBlank()) {
-            throw new IllegalArgumentException("Queue name or URL must not be empty");
+            throw new IllegalArgumentException("Nome ou URL da fila não deve ser vazio");
         }
 
         if (target.startsWith("http://") || target.startsWith("https://")) {
@@ -128,7 +128,7 @@ public class ServiceOrderQueueListener {
         }
 
         return resolvedQueueUrls.computeIfAbsent(target, name -> {
-            log.debug("Resolving SQS queue URL for queue name: {}", name);
+            log.debug("Resolvendo URL da fila SQS para o nome: {}", name);
             return sqsClient.getQueueUrl(GetQueueUrlRequest.builder().queueName(name).build()).queueUrl();
         });
     }
