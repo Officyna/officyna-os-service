@@ -15,15 +15,19 @@ import br.com.officyna.domain.serviceorder.controller.ServiceOrderControllerAdap
 import br.com.officyna.domain.serviceorder.mapper.ServiceOrderMapper;
 import br.com.officyna.domain.serviceorder.presenter.ServiceOrderPresenter;
 import br.com.officyna.domain.serviceorder.repository.ServiceOrderRepository;
-import br.com.officyna.domain.serviceorder.service.CustomerAndMecnichalService;
-import br.com.officyna.domain.serviceorder.service.CustomerServiceOrderService;
-import br.com.officyna.domain.serviceorder.service.ServiceOrderService;
-import br.com.officyna.domain.serviceorder.service.VehicleSelectionService;
+import br.com.officyna.domain.serviceorder.gateway.ProductionLaborGateway;
+import br.com.officyna.domain.serviceorder.service.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class PersistenceBeanConfig {
+
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+    public org.springframework.web.client.RestClient.Builder restClientBuilder() {
+        return org.springframework.web.client.RestClient.builder();
+    }
 
     @Bean
     public CustomerService customerService(CustomerRepository customerRepository) {
@@ -60,14 +64,21 @@ public class PersistenceBeanConfig {
     }
 
     @Bean
+    public LaborSelectionService laborSelectionService(ProductionLaborGateway productionLaborGateway) {
+        return new LaborSelectionService(productionLaborGateway);
+    }
+
+    @Bean
     public ServiceOrderService serviceOrderService(ServiceOrderRepository serviceOrderRepository,
                                                    CustomerAndMecnichalService customerAndMecnichalService,
                                                    VehicleSelectionService vehicleSelectionService,
+                                                   LaborSelectionService laborSelectionService,
                                                    ServiceOrderMapper mapper) {
         return new ServiceOrderService(
                 serviceOrderRepository,
                 customerAndMecnichalService,
                 vehicleSelectionService,
+                laborSelectionService,
                 mapper
         );
     }

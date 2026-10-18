@@ -12,3 +12,4 @@ data:
   LOG_LEVEL_APP: "INFO"
   LOG_LEVEL_SECURITY: "INFO"
   DATABASE_SEED_ENABLED: "true"
+  PRODUCTION_SERVICE_URL: "http://officyna-production-service"

@@ -146,20 +146,28 @@ public class CustomerServiceOrderService {
                         item.setSituationDate(now);
                     });
 
-            ServiceOrderStatus previousStatus = entity.getStatus();
+            boolean allRejected = entity.getLabors().getLaborsDetails().stream()
+                    .allMatch(item -> LaborSituation.REJEITADO.equals(item.getSituation()));
 
-            entity.setStatus(ServiceOrderStatus.APROVADA);
-
-            serviceOrderService.logStatusChange(
-                    entity,
-                    previousStatus,
-                    ServiceOrderStatus.APROVADA
-            );
-
-            log.info(
-                    "Service order {} approved after labor situation update",
-                    serviceOrderId
-            );
+            if (allRejected) {
+                ServiceOrderStatus previousStatus = entity.getStatus();
+                entity.setStatus(ServiceOrderStatus.RECUSADA);
+                serviceOrderService.logStatusChange(
+                        entity,
+                        previousStatus,
+                        ServiceOrderStatus.RECUSADA
+                );
+                log.info(
+                        "Service order {} refused because all labors were rejected",
+                        serviceOrderId
+                );
+            } else {
+                log.info(
+                        "Labor situations updated for service order {}. Order remains in {} awaiting payment confirmation.",
+                        serviceOrderId,
+                        entity.getStatus()
+                );
+            }
 
         } else {
 

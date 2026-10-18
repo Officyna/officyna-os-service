@@ -120,11 +120,44 @@ class CustomerServiceOrderServiceTest {
         ServiceOrder result = service.updateLaborSituation(orderId, request);
 
         assertThat(result).isSameAs(entity);
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
         assertThat(labor1.getSituation()).isEqualTo(LaborSituation.APROVADO);
         assertThat(labor1.getSituationDate()).isNotNull();
         assertThat(labor2.getSituation()).isEqualTo(LaborSituation.REJEITADO);
         assertThat(labor2.getSituationDate()).isNotNull();
 
+        verify(serviceOrderService).save(entity);
+    }
+
+    @Test
+    @DisplayName("Deve definir status como RECUSADA quando todos os serviços forem rejeitados")
+    void updateLaborSituation_WhenAllLaborsRejected_ShouldSetStatusToRecusada() {
+        String orderId = "order-1";
+        LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l1").situation(LaborSituation.PENDENTE).build();
+        LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l2").situation(LaborSituation.PENDENTE).build();
+
+        ServiceOrder entity = ServiceOrder.builder()
+                .id(orderId)
+                .status(ServiceOrderStatus.AGUARDANDO_APROVACAO)
+                .labors(LaborsDTO.builder().laborsDetails(new ArrayList<>(List.of(labor1, labor2))).build())
+                .build();
+
+        List<ModifySituationRequest> request = List.of(
+                new ModifySituationRequest("l1", LaborSituation.REJEITADO),
+                new ModifySituationRequest("l2", LaborSituation.REJEITADO)
+        );
+
+        when(serviceOrderRepository.findById(orderId)).thenReturn(Optional.of(entity));
+        when(serviceOrderService.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.updateLaborSituation(orderId, request);
+
+        assertThat(result).isSameAs(entity);
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.RECUSADA);
+        assertThat(labor1.getSituation()).isEqualTo(LaborSituation.REJEITADO);
+        assertThat(labor2.getSituation()).isEqualTo(LaborSituation.REJEITADO);
+
+        verify(serviceOrderService).logStatusChange(entity, ServiceOrderStatus.AGUARDANDO_APROVACAO, ServiceOrderStatus.RECUSADA);
         verify(serviceOrderService).save(entity);
     }
 

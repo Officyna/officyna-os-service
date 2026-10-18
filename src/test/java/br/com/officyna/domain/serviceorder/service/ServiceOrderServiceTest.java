@@ -43,6 +43,9 @@ class ServiceOrderServiceTest {
     @Mock
     private VehicleSelectionService vehicleSelectionService;
 
+    @Mock
+    private LaborSelectionService laborSelectionService;
+
     @InjectMocks
     private ServiceOrderService service;
 
@@ -206,11 +209,17 @@ class ServiceOrderServiceTest {
                 .informationText("Diagnóstico inicial")
                 .build();
 
-        LaborsDTO labors = new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO);
+        LaborDetailDTO laborSnapshot = LaborDetailDTO.builder()
+                .laborId("lab-1")
+                .name("Troca de Óleo")
+                .laborPrice(new BigDecimal("100.00"))
+                .situation(LaborSituation.PENDENTE)
+                .build();
         CustomerDTO customer = new CustomerDTO();
         VehicleDTO vehicle = new VehicleDTO();
         ServiceOrder entity = buildEntity(null, null);
 
+        when(laborSelectionService.getLaborSnapshot("lab-1")).thenReturn(laborSnapshot);
         when(customerAndMecnichalService.getCustomer("cust-1")).thenReturn(customer);
         when(vehicleSelectionService.getVehicle("veh-1")).thenReturn(vehicle);
         when(mapper.toCreateEntity(any(), any(), any(), any())).thenReturn(entity);
@@ -219,6 +228,7 @@ class ServiceOrderServiceTest {
         ServiceOrder result = service.createServiceOrder(request);
 
         assertThat(result).isEqualTo(entity);
+        verify(laborSelectionService).getLaborSnapshot("lab-1");
         verify(repository).save(entity);
     }
 
@@ -279,15 +289,16 @@ class ServiceOrderServiceTest {
         entity.setLabors(existingLabors);
 
         LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
-        LaborsDTO updatedLabors = new LaborsDTO(List.of(labor), BigDecimal.TEN);
 
         when(repository.findById("id-1")).thenReturn(Optional.of(entity));
+        when(laborSelectionService.getLaborSnapshot("lab-1")).thenReturn(labor);
         when(repository.save(any())).thenReturn(entity);
 
         ServiceOrder result = service.addLaborsInServiceOrder("id-1", List.of(new LaborsRequest("lab-1")));
 
         assertThat(result).isEqualTo(entity);
         assertThat(result.getLabors().getLaborsDetails()).hasSize(1);
+        assertThat(result.getLabors().getTotalLaborsAmount()).isEqualByComparingTo(BigDecimal.TEN);
     }
 
     // ─────────────── removeLaborFromServiceOrder ───────────────
@@ -328,6 +339,35 @@ class ServiceOrderServiceTest {
 
         assertThat(result).isEqualTo(entity);
         assertThat(result.getSupplys().getSupplysDetails()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("addSupplyFromServiceOrder deve calcular preco unitario, total e totalSupplyAmount")
+    void addSupplyFromServiceOrder_ShouldCalculateAmountsCorrectly() {
+        ServiceOrder entity = buildEntity("id-1", ServiceOrderStatus.RECEBIDA);
+        entity.setSupplys(null);
+
+        when(repository.findById("id-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        SupplysRequest request = SupplysRequest.builder()
+                .id("sup-1")
+                .name("Oleo")
+                .description("Oleo 5w30")
+                .quantity(3)
+                .unitPrice(new BigDecimal("50.00"))
+                .build();
+
+        ServiceOrder result = service.addSupplyFromServiceOrder("id-1", List.of(request));
+
+        assertThat(result.getSupplys().getSupplysDetails()).hasSize(1);
+        SupplyDetailDTO detail = result.getSupplys().getSupplysDetails().get(0);
+        assertThat(detail.getName()).isEqualTo("Oleo");
+        assertThat(detail.getDescription()).isEqualTo("Oleo 5w30");
+        assertThat(detail.getQuantity()).isEqualTo(3);
+        assertThat(detail.getUnitPrice()).isEqualByComparingTo("50.00");
+        assertThat(detail.getTotalPrice()).isEqualByComparingTo("150.00");
+        assertThat(result.getSupplys().getTotalSupplyAmount()).isEqualByComparingTo("150.00");
     }
 
     // ─────────────── removeSupplyFromServiceOrder ───────────────
