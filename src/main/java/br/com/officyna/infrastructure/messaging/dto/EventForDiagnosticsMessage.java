@@ -12,4 +12,7 @@ import lombok.NoArgsConstructor;
 public class EventForDiagnosticsMessage {
 
     private String serviceOrderId;
+
+    @Builder.Default
+    private String status = "RECEBIDA";
 }

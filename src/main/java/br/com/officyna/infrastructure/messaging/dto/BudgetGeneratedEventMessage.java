@@ -1,5 +1,6 @@
 package br.com.officyna.infrastructure.messaging.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,5 +18,7 @@ public class BudgetGeneratedEventMessage {
     private BigDecimal totalLaborAmount;
     private BigDecimal totalSupplyAmount;
     private BigDecimal totalBudgetAmount;
-    private String paymentUrl;
+
+    @JsonAlias({"paymentLink", "payment_link", "paymentUrl"})
+    private String paymentLink;
 }
