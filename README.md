@@ -93,16 +93,133 @@ As antigas coleções e documentos relacionais ou de outros domínios (`users`, 
 ## 🚀 Instruções de Execução e Testes
 
 ### Pré-requisitos
-* Java 21+
-* Docker e Docker Compose (para banco local MongoDB)
-* Maven 3.9+ (ou utilizar o wrapper `./mvnw.cmd` / `./mvnw`)
+* **Java JDK 21+** (configurado no `JAVA_HOME`)
+* **Docker** e **Docker Compose** (com o **Docker Desktop** em execução no modo Linux containers)
+* **Maven 3.9+** (opcional, pois o projeto já inclui o wrapper `./mvnw.cmd` / `./mvnw`)
 
-### 1. Subir MongoDB Localmente
+---
+
+### Opção A: Infraestrutura no Docker + Aplicação na IDE/Terminal (Recomendado para Desenvolvimento)
+
+Nesse modo, você sobe o banco de dados (**MongoDB**), a mensageria (**LocalStack SQS**) e os painéis visuais (**Mongo Express** e **SQS Admin**) via Docker, e executa a aplicação Spring Boot diretamente na máquina local.
+
+#### 1. Subir a infraestrutura base
+Na raiz do projeto, execute:
 ```bash
-docker-compose up -d mongodb
+docker compose up -d mongodb mongo-express localstack sqs-admin
+```
+* O container **`mongodb`** ficará disponível em `localhost:27017` (banco `officyna`).
+* O container **`localstack`** ficará disponível em `localhost:4566` e executará automaticamente o script `localstack-init/init-sqs.sh`, criando as filas SQS (`eventForDiagnostics`, `eventDiagnosis`, `eventDiagnosisCompleted`, `eventGeneratePayment`, `eventBugetGenerated`, `topicAprovacao`).
+* O **`mongo-express`** ficará acessível em `http://localhost:8081` (usuário: `admin` / senha: `admin`).
+* O **`sqs-admin`** (painel visual das filas SQS) ficará acessível em `http://localhost:8088`.
+
+Verifique se os containers estão saudáveis (`healthy`):
+```bash
+docker compose ps
 ```
 
-### 2. Compilar e Executar Testes Unitários
+#### 2. Executar a aplicação Spring Boot
+```bash
+# Windows (PowerShell / CMD)
+.\mvnw.cmd spring-boot:run
+
+# Linux / macOS
+./mvnw spring-boot:run
+```
+
+> **Dica — Popular dados iniciais (Seed de Clientes e Veículos):**
+> Para iniciar a aplicação populando clientes e veículos de teste automaticamente (`DatabaseSeeder`), habilite a propriedade `database.seed.enabled=true`:
+> ```bash
+> # Windows
+> .\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--database.seed.enabled=true"
+>
+> # Linux / macOS
+> ./mvnw spring-boot:run -Dspring-boot.run.arguments="--database.seed.enabled=true"
+> ```
+
+---
+
+### Opção B: Ambiente Completo via Docker Compose (Infraestrutura + App + Kong Gateway)
+
+Para rodar toda a stack containerizada (incluindo o build da aplicação e o API Gateway **Kong**):
+```bash
+docker compose up -d --build
+```
+
+Para acompanhar os logs da aplicação:
+```bash
+docker compose logs -f app
+```
+
+Para encerrar todos os containers:
+```bash
+docker compose down
+```
+
+---
+
+### 🌐 Acessos e Endpoints Locais
+
+| Serviço | URL | Credenciais / Observações |
+| :--- | :--- | :--- |
+| **API (`officyna-os-service`)** | `http://localhost:8080` | Porta padrão configurada em `SERVER_PORT` |
+| **Swagger UI (OpenAPI)** | `http://localhost:8080/swagger-ui.html` | Documentação interativa dos endpoints |
+| **OpenAPI JSON** | `http://localhost:8080/api-docs` | Especificação OpenAPI bruta |
+| **Healthcheck (Actuator)** | `http://localhost:8080/actuator/health` | Deve retornar `{"status":"UP"}` |
+| **Mongo Express** | `http://localhost:8081` | Interface web do MongoDB (`admin` / `admin`) |
+| **SQS Admin** | `http://localhost:8088` | Interface web para visualizar e gerenciar as filas SQS do LocalStack |
+| **Kong Gateway** *(Opção B)* | `http://localhost:8000/officyna` | Proxy reverso configurado no `Kong.yml` |
+
+#### Inspecionando filas SQS via Terminal (Alternativa ao SQS Admin)
+```bash
+# Listar todas as filas criadas no LocalStack
+docker exec -it officyna-os-service-localstack awslocal sqs list-queues
+
+# Ler mensagens de uma fila específica
+docker exec -it officyna-os-service-localstack awslocal sqs receive-message --queue-url http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/eventForDiagnostics
+```
+
+---
+
+### 🔐 Autenticação Local (Como obter o Token JWT)
+
+A maioria dos endpoints exige autenticação via **Bearer Token (JWT)**. Os usuários locais para desenvolvimento são:
+
+| Perfil (`UserRole`) | E-mail | Senha |
+| :--- | :--- | :--- |
+| `ADMIN` | `admin@email.com` | `admin123` |
+| `ATTENDANT` | `atendente@email.com` | `atendente123` |
+
+1. Realize uma requisição `POST` para `/api/auth/login`:
+   ```bash
+   curl -X POST http://localhost:8080/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email": "admin@email.com", "password": "admin123"}'
+   ```
+2. Copie o valor do campo `token` retornado no JSON.
+3. No **Swagger UI** (`http://localhost:8080/swagger-ui.html`), clique em **Authorize** no topo da página, cole o token e confirme, ou envie no header das requisições:
+   ```http
+   Authorization: Bearer <SEU_TOKEN_JWT>
+   ```
+
+---
+
+### ⚙️ Principais Variáveis de Ambiente
+
+| Variável | Valor Padrão Local | Descrição |
+| :--- | :--- | :--- |
+| `SERVER_PORT` | `8080` | Porta HTTP da aplicação |
+| `MONGODB_URI` | `mongodb://localhost:27017/officyna` | URI de conexão com o MongoDB |
+| `AWS_ENDPOINT` | `http://localhost:4566` | Endpoint do LocalStack / AWS SQS |
+| `AWS_REGION` | `us-east-1` | Região AWS padrão |
+| `AWS_SQS_LISTENER_ENABLED` | `true` | Ativa/desativa o polling das filas SQS (`false` para rodar sem LocalStack) |
+| `PRODUCTION_SERVICE_URL` | `http://localhost:8082` | URL do microsserviço de produção para consulta de mão de obra |
+
+---
+
+### 🧪 Executar Testes e Validação de Cobertura
+
+#### 1. Compilar e Executar Testes Unitários e de Integração
 ```bash
 # Windows
 .\mvnw.cmd clean test
@@ -111,7 +228,7 @@ docker-compose up -d mongodb
 ./mvnw clean test
 ```
 
-### 3. Validação Completa do Ciclo de Build e Cobertura (JaCoCo)
+#### 2. Validação Completa do Ciclo de Build e Cobertura (JaCoCo)
 ```bash
 # Windows
 .\mvnw.cmd clean verify
@@ -119,18 +236,13 @@ docker-compose up -d mongodb
 # Linux / macOS
 ./mvnw clean verify
 ```
+*(O relatório HTML de cobertura do JaCoCo é gerado em `target/site/jacoco/index.html`)*.
 
-### 4. Executar a Aplicação Localmente
+#### 3. Análise com SonarQube Local (Opcional)
 ```bash
-# Windows
-.\mvnw.cmd spring-boot:run
-
-# Linux / macOS
-./mvnw spring-boot:run
+docker compose --profile sonar up -d sonarqube
+.\mvnw.cmd clean verify sonar:sonar -Dsonar.token=<SEU_TOKEN_SONAR>
 ```
-
-A aplicação estará disponível em `http://localhost:8080`.
-Acesse a documentação OpenAPI/Swagger em: `http://localhost:8080/swagger-ui.html`.
 
 ---
 

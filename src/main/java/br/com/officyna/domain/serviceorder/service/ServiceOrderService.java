@@ -8,6 +8,7 @@ import br.com.officyna.domain.serviceorder.enums.ServiceOrderStatus;
 import br.com.officyna.domain.serviceorder.exception.ServiceOrderBusinessException;
 import br.com.officyna.domain.serviceorder.exception.ServiceOrderNotFoundException;
 import br.com.officyna.domain.serviceorder.mapper.ServiceOrderMapper;
+import br.com.officyna.domain.serviceorder.gateway.ServiceOrderEventPublisherGateway;
 import br.com.officyna.domain.serviceorder.repository.ServiceOrderRepository;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,17 +27,33 @@ public class ServiceOrderService {
     private final VehicleSelectionService vehicleSelectionService;
     private final LaborSelectionService laborSelectionService;
     private final ServiceOrderMapper mapper;
+    private final ServiceOrderEventPublisherGateway eventPublisherGateway;
 
     public ServiceOrderService(ServiceOrderRepository repository,
                                CustomerAndMecnichalService customerAndMecnichalService,
                                VehicleSelectionService vehicleSelectionService,
                                LaborSelectionService laborSelectionService,
                                ServiceOrderMapper mapper) {
+        this(repository, customerAndMecnichalService, vehicleSelectionService, laborSelectionService, mapper, new ServiceOrderEventPublisherGateway() {
+            @Override
+            public void publishForDiagnostics(String serviceOrderId) {}
+            @Override
+            public void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies) {}
+        });
+    }
+
+    public ServiceOrderService(ServiceOrderRepository repository,
+                               CustomerAndMecnichalService customerAndMecnichalService,
+                               VehicleSelectionService vehicleSelectionService,
+                               LaborSelectionService laborSelectionService,
+                               ServiceOrderMapper mapper,
+                               ServiceOrderEventPublisherGateway eventPublisherGateway) {
         this.repository = repository;
         this.customerAndMecnichalService = customerAndMecnichalService;
         this.vehicleSelectionService = vehicleSelectionService;
         this.laborSelectionService = laborSelectionService;
         this.mapper = mapper;
+        this.eventPublisherGateway = eventPublisherGateway;
     }
 
     private ServiceOrder findEntityById(String id) {
@@ -154,6 +171,8 @@ public class ServiceOrderService {
         entity.setTotalBudgetAmount(totalLaborsAmount);
 
         ServiceOrder saved = this.save(entity);
+
+        eventPublisherGateway.publishForDiagnostics(saved.getId());
 
         log.info(
                 "Service order created. event=SERVICE_ORDER_CREATED, serviceOrderId={}, serviceOrderNumber={}, status={}",
@@ -385,6 +404,126 @@ public class ServiceOrderService {
                 "Service order status updated successfully. Id: {}, Status: {}",
                 id,
                 status
+        );
+
+        return saved;
+    }
+
+    public ServiceOrder startDiagnosis(
+            String id,
+            String mechanicId) {
+
+        log.info(
+                "Starting diagnosis. Service order id: {}, Mechanic id: {}",
+                id,
+                mechanicId
+        );
+
+        ServiceOrder entity = this.findEntityById(id);
+        ServiceOrderStatus previousStatus = entity.getStatus();
+
+        entity.setStatus(ServiceOrderStatus.EM_DIAGNOSTICO);
+
+        if (mechanicId != null && !mechanicId.isBlank()) {
+            MechanicDTO mechanic = customerAndMecnichalService.getMechanic(mechanicId);
+            entity.setMechanic(mechanic);
+        }
+
+        logStatusChange(
+                entity,
+                previousStatus,
+                ServiceOrderStatus.EM_DIAGNOSTICO
+        );
+
+        ServiceOrder saved = this.save(entity);
+
+        log.info(
+                "Service order status updated to EM_DIAGNOSTICO. Id: {}",
+                id
+        );
+
+        return saved;
+    }
+
+    public void handleDiagnosisCompleted(String serviceOrderId) {
+        log.info("Processando evento eventDiagnosisCompleted para ordem de serviço: {}", serviceOrderId);
+        ServiceOrder entity = this.findEntityById(serviceOrderId);
+
+        List<LaborDetailDTO> labors = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
+                ? entity.getLabors().getLaborsDetails().stream()
+                    .filter(l -> l.getSituation() == null || l.getSituation() != LaborSituation.REJEITADO)
+                    .toList()
+                : List.of();
+
+        List<SupplyDetailDTO> supplies = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
+                ? entity.getSupplys().getSupplysDetails()
+                : List.of();
+
+        eventPublisherGateway.publishGeneratePayment(serviceOrderId, labors, supplies);
+
+        log.info("eventGeneratePayment publicado com sucesso para ordem de serviço: {}", serviceOrderId);
+    }
+
+    public void generatePaymentForServiceOrder(String serviceOrderId) {
+        log.info("Publicando eventGeneratePayment para ordem de serviço: {}", serviceOrderId);
+        ServiceOrder entity = this.findEntityById(serviceOrderId);
+
+        List<LaborDetailDTO> approvedLabors = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
+                ? entity.getLabors().getLaborsDetails().stream()
+                    .filter(l -> LaborSituation.APROVADO.equals(l.getSituation()))
+                    .toList()
+                : List.of();
+
+        List<SupplyDetailDTO> supplies = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
+                ? entity.getSupplys().getSupplysDetails()
+                : List.of();
+
+        eventPublisherGateway.publishGeneratePayment(serviceOrderId, approvedLabors, supplies);
+
+        log.info("eventGeneratePayment pós-aprovação publicado com sucesso para ordem de serviço: {}", serviceOrderId);
+    }
+
+
+    public ServiceOrder applyBudget(
+            String id,
+            BigDecimal totalLaborAmount,
+            BigDecimal totalSupplyAmount,
+            BigDecimal totalBudgetAmount) {
+
+        log.info(
+                "Applying budget to service order id: {}, totalBudgetAmount: {}",
+                id,
+                totalBudgetAmount
+        );
+
+        ServiceOrder entity = this.findEntityById(id);
+        ServiceOrderStatus previousStatus = entity.getStatus();
+
+        if (totalBudgetAmount != null) {
+            entity.setTotalBudgetAmount(totalBudgetAmount);
+        }
+
+        if (entity.getLabors() != null && totalLaborAmount != null) {
+            entity.getLabors().setTotalLaborsAmount(totalLaborAmount);
+        }
+
+        if (entity.getSupplys() != null && totalSupplyAmount != null) {
+            entity.getSupplys().setTotalSupplyAmount(totalSupplyAmount);
+        }
+
+        entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+        logStatusChange(
+                entity,
+                previousStatus,
+                ServiceOrderStatus.AGUARDANDO_APROVACAO
+        );
+
+        ServiceOrder saved = this.save(entity);
+
+        log.info(
+                "Budget applied to service order id: {}. New status: AGUARDANDO_APROVACAO",
+                id
         );
 
         return saved;

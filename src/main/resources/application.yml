@@ -41,3 +41,22 @@ logging:
 services:
   production:
     url: ${PRODUCTION_SERVICE_URL:http://localhost:8082}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+  access-key: ${AWS_ACCESS_KEY_ID:test}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:test}
+  sqs:
+    listener:
+      enabled: ${AWS_SQS_LISTENER_ENABLED:true}
+      wait-time-seconds: ${AWS_SQS_WAIT_TIME_SECONDS:5}
+      poll-delay-ms: ${AWS_SQS_POLL_DELAY_MS:2000}
+    queues:
+      event-for-diagnostics: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS:eventForDiagnostics}
+      event-diagnosis: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS:eventDiagnosis}
+      event-diagnosis-completed: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED:eventDiagnosisCompleted}
+      event-generate-payment: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT:eventGeneratePayment}
+      event-buget-generated: ${AWS_SQS_QUEUE_EVENT_BUGET_GENERATED:eventBugetGenerated}
+      topic-aprovacao: ${AWS_SQS_QUEUE_TOPIC_APROVACAO:topicAprovacao}
+

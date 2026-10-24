@@ -1,0 +1,36 @@
+spring:
+  jackson:
+    read-unknown-enum-values-as-null: true
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://localhost:27017/officyna}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET:officyna-secret-key-change-in-production-min-256bits}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+database:
+  seed:
+    enabled: false
+
+services:
+  production:
+    url: ${PRODUCTION_SERVICE_URL:http://localhost:8082}
+
+aws:
+  region: us-east-1
+  endpoint: http://localhost:4566
+  access-key: test
+  secret-key: test
+  sqs:
+    listener:
+      enabled: false
+    queues:
+      event-for-diagnostics: eventForDiagnostics
+      event-diagnosis: eventDiagnosis
+      event-diagnosis-completed: eventDiagnosisCompleted
+      event-generate-payment: eventGeneratePayment
+      event-buget-generated: eventBugetGenerated
+      topic-aprovacao: topicAprovacao

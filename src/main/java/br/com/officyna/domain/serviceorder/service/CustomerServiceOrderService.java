@@ -167,6 +167,7 @@ public class CustomerServiceOrderService {
                         serviceOrderId,
                         entity.getStatus()
                 );
+                serviceOrderService.generatePaymentForServiceOrder(serviceOrderId);
             }
 
         } else {
