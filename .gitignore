@@ -19,3 +19,4 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 .secrets
+/.vscode/settings.json

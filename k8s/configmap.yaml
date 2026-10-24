@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: officyna-configmap
   labels:
-    app.kubernetes.io/name: officyna
+    app.kubernetes.io/name: officyna-os
   namespace: officyna
 data:
   SPRING_PROFILES_ACTIVE: "default"
@@ -14,10 +14,10 @@ data:
   DATABASE_SEED_ENABLED: "true"
   PRODUCTION_SERVICE_URL: "http://officyna-production-service"
   AWS_REGION: "us-east-1"
+  AWS_ENDPOINT: ""
   AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS: "eventForDiagnostics"
   AWS_SQS_QUEUE_EVENT_DIAGNOSIS: "eventDiagnosis"
   AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED: "eventDiagnosisCompleted"
   AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT: "eventGeneratePayment"
   AWS_SQS_QUEUE_EVENT_BUGET_GENERATED: "eventBugetGenerated"
   AWS_SQS_QUEUE_TOPIC_APROVACAO: "topicAprovacao"
-

@@ -1,8 +1,11 @@
 package br.com.officyna.infrastructure.messaging.listener;
 
+import br.com.officyna.infrastructure.logging.CorrelationConstants;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newrelic.api.agent.NewRelic;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
@@ -11,6 +14,7 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -44,6 +48,7 @@ public abstract class AbstractSqsQueueListener<T> {
                     .queueUrl(queueUrl)
                     .maxNumberOfMessages(10)
                     .waitTimeSeconds(Math.max(0, Math.min(20, waitTimeSeconds)))
+                    .messageAttributeNames("All")
                     .build());
 
             if (response.hasMessages() && !response.messages().isEmpty()) {
@@ -58,7 +63,11 @@ public abstract class AbstractSqsQueueListener<T> {
     }
 
     protected void processSingleMessage(String queueUrl, Message msg) {
+        String correlationId = extractCorrelationId(msg);
         try {
+            MDC.put(CorrelationConstants.CORRELATION_ID_KEY, correlationId);
+            NewRelic.addCustomParameter(CorrelationConstants.CORRELATION_ID_KEY, correlationId);
+
             log.info("Processando mensagem SQS id={} da fila: {}", msg.messageId(), queueName);
             String rawBody = msg.body();
             String payloadJson = extractPayload(rawBody);
@@ -75,7 +84,54 @@ public abstract class AbstractSqsQueueListener<T> {
         } catch (Exception e) {
             log.error("Falha ao processar mensagem id={} da fila {}. Conteúdo: {}",
                     msg.messageId(), queueName, msg.body(), e);
+        } finally {
+            MDC.remove(CorrelationConstants.CORRELATION_ID_KEY);
         }
+    }
+
+    protected String extractCorrelationId(Message msg) {
+        if (msg.hasMessageAttributes() && msg.messageAttributes() != null) {
+            if (msg.messageAttributes().containsKey(CorrelationConstants.CORRELATION_ID_HEADER)) {
+                String val = msg.messageAttributes().get(CorrelationConstants.CORRELATION_ID_HEADER).stringValue();
+                if (val != null && !val.isBlank()) {
+                    return val;
+                }
+            }
+            if (msg.messageAttributes().containsKey(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER)) {
+                String val = msg.messageAttributes().get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).stringValue();
+                if (val != null && !val.isBlank()) {
+                    return val;
+                }
+            }
+        }
+
+        String rawBody = msg.body();
+        if (rawBody != null && !rawBody.isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(rawBody);
+                if (root.has("MessageAttributes")) {
+                    JsonNode msgAttrs = root.get("MessageAttributes");
+                    if (msgAttrs.has(CorrelationConstants.CORRELATION_ID_HEADER)
+                            && msgAttrs.get(CorrelationConstants.CORRELATION_ID_HEADER).has("Value")) {
+                        String val = msgAttrs.get(CorrelationConstants.CORRELATION_ID_HEADER).get("Value").asText();
+                        if (val != null && !val.isBlank()) {
+                            return val;
+                        }
+                    }
+                    if (msgAttrs.has(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER)
+                            && msgAttrs.get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).has("Value")) {
+                        String val = msgAttrs.get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).get("Value").asText();
+                        if (val != null && !val.isBlank()) {
+                            return val;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // Continua para fallback UUID
+            }
+        }
+
+        return UUID.randomUUID().toString();
     }
 
     private String extractPayload(String body) {

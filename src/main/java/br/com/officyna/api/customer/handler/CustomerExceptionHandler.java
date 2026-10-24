@@ -59,7 +59,10 @@ public class CustomerExceptionHandler {
     private String resolveCorrelationId(HttpServletRequest request) {
         String correlationId = MDC.get("correlationId");
         if (correlationId == null || correlationId.isBlank()) {
-            correlationId = request.getHeader("X-Correlation-ID");
+            correlationId = request.getHeader("correlationId");
+            if (correlationId == null || correlationId.isBlank()) {
+                correlationId = request.getHeader("X-Correlation-ID");
+            }
         }
         return correlationId != null ? correlationId : "unknown";
     }

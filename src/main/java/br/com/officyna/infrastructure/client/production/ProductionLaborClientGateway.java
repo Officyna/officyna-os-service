@@ -4,8 +4,10 @@ import br.com.officyna.domain.serviceorder.dto.LaborDetailDTO;
 import br.com.officyna.domain.serviceorder.enums.LaborSituation;
 import br.com.officyna.domain.serviceorder.exception.ServiceOrderBusinessException;
 import br.com.officyna.domain.serviceorder.gateway.ProductionLaborGateway;
+import br.com.officyna.infrastructure.logging.CorrelationConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -98,10 +100,20 @@ public class ProductionLaborClientGateway implements ProductionLaborGateway {
                 if (auth != null && !auth.isBlank()) {
                     headers.set(HttpHeaders.AUTHORIZATION, auth);
                 }
-                String correlationId = request.getHeader("X-Correlation-ID");
-                if (correlationId != null && !correlationId.isBlank()) {
-                    headers.set("X-Correlation-ID", correlationId);
+            }
+
+            String correlationId = MDC.get(CorrelationConstants.CORRELATION_ID_KEY);
+            if ((correlationId == null || correlationId.isBlank()) && attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                correlationId = request.getHeader(CorrelationConstants.CORRELATION_ID_HEADER);
+                if (correlationId == null || correlationId.isBlank()) {
+                    correlationId = request.getHeader(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER);
                 }
+            }
+
+            if (correlationId != null && !correlationId.isBlank()) {
+                headers.set(CorrelationConstants.CORRELATION_ID_HEADER, correlationId);
+                headers.set(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER, correlationId);
             }
         } catch (Exception e) {
             log.debug("Could not propagate request headers: {}", e.getMessage());

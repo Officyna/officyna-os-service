@@ -5,6 +5,7 @@ import br.com.officyna.domain.serviceorder.exception.ServiceOrderBusinessExcepti
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -15,6 +16,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
@@ -116,5 +118,37 @@ class ProductionLaborClientGatewayTest {
                 .hasMessageContaining("Falha na comunicação com o serviço de produção");
 
         mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Deve propagar header correlationId a partir do MDC")
+    void findById_WhenMdcContainsCorrelationId_ShouldPropagateHeader() {
+        MDC.put("correlationId", "mdc-corr-123");
+        try {
+            String laborId = "lab-corr";
+            String jsonResponse = """
+                    {
+                        "id": "lab-corr",
+                        "name": "Alinhamento",
+                        "description": "Alinhamento 3D",
+                        "price": 100.00,
+                        "executionTimeInDays": 1,
+                        "active": true
+                    }
+                    """;
+
+            mockServer.expect(requestTo("http://localhost:8082/api/labors/" + laborId))
+                    .andExpect(method(HttpMethod.GET))
+                    .andExpect(header("correlationId", "mdc-corr-123"))
+                    .andExpect(header("X-Correlation-ID", "mdc-corr-123"))
+                    .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
+
+            Optional<LaborDetailDTO> result = gateway.findById(laborId);
+
+            assertThat(result).isPresent();
+            mockServer.verify();
+        } finally {
+            MDC.clear();
+        }
     }
 }

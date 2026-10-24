@@ -35,7 +35,10 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
     ) throws IOException {
         String correlationId = MDC.get("correlationId");
         if (correlationId == null || correlationId.isBlank()) {
-            correlationId = request.getHeader("X-Correlation-ID");
+            correlationId = request.getHeader("correlationId");
+            if (correlationId == null || correlationId.isBlank()) {
+                correlationId = request.getHeader("X-Correlation-ID");
+            }
         }
         if (correlationId == null) {
             correlationId = "unknown";
