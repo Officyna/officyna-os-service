@@ -1,5 +1,8 @@
 package br.com.officyna.infrastructure.messaging.publisher;
 
+import br.com.officyna.domain.serviceorder.dto.LaborDetailDTO;
+import br.com.officyna.domain.serviceorder.dto.SupplyDetailDTO;
+import br.com.officyna.domain.serviceorder.enums.LaborSituation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +19,9 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import software.amazon.awssdk.services.sqs.model.SqsException;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,23 +34,26 @@ class ServiceOrderSqsPublisherGatewayTest {
     private SqsClient sqsClient;
 
     private ObjectMapper objectMapper;
+    private ServiceOrderSqsPublisherGateway gateway;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
+        gateway = new ServiceOrderSqsPublisherGateway(
+                sqsClient,
+                objectMapper,
+                "eventForDiagnostics",
+                "eventGeneratePayment"
+        );
     }
 
     @Test
-    @DisplayName("Deve publicar eventForDiagnostics para production-service-queue com header eventType")
-    void publishForDiagnostics_ShouldPublishToProductionQueueWithHeader() {
+    @DisplayName("Deve publicar eventForDiagnostics para fila sem header eventType")
+    void publishForDiagnostics_ShouldPublishToQueueWithoutHeader() {
         when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
-                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/production-service-queue").build());
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventForDiagnostics").build());
         when(sqsClient.sendMessage(any(SendMessageRequest.class)))
                 .thenReturn(SendMessageResponse.builder().messageId("msg-123").build());
-
-        ServiceOrderSqsPublisherGateway gateway = new ServiceOrderSqsPublisherGateway(
-                sqsClient, objectMapper, "production-service-queue"
-        );
 
         gateway.publishForDiagnostics("so-123");
 
@@ -52,23 +61,47 @@ class ServiceOrderSqsPublisherGatewayTest {
         verify(sqsClient).sendMessage(captor.capture());
 
         SendMessageRequest request = captor.getValue();
-        assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/production-service-queue");
+        assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/eventForDiagnostics");
         assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-123\"");
-        assertThat(request.messageAttributes()).containsKey("eventType");
-        assertThat(request.messageAttributes().get("eventType").stringValue()).isEqualTo("eventForDiagnostics");
+        assertThat(request.messageBody()).contains("\"status\":\"RECEBIDA\"");
+        assertThat(request.messageAttributes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve publicar eventGeneratePayment para fila sem header eventType")
+    void publishGeneratePayment_ShouldPublishToQueueWithoutHeader() {
+        when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventGeneratePayment").build());
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("msg-456").build());
+
+        List<LaborDetailDTO> labors = List.of(
+                LaborDetailDTO.builder().laborId("l-1").name("Troca de óleo").situation(LaborSituation.APROVADO).build()
+        );
+        List<SupplyDetailDTO> supplies = List.of(
+                SupplyDetailDTO.builder().id("s-1").name("Filtro").quantity(1).unitPrice(new BigDecimal("50.00")).build()
+        );
+
+        gateway.publishGeneratePayment("so-456", labors, supplies);
+
+        ArgumentCaptor<SendMessageRequest> captor = ArgumentCaptor.forClass(SendMessageRequest.class);
+        verify(sqsClient).sendMessage(captor.capture());
+
+        SendMessageRequest request = captor.getValue();
+        assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/eventGeneratePayment");
+        assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-456\"");
+        assertThat(request.messageBody()).contains("Troca de óleo");
+        assertThat(request.messageBody()).contains("Filtro");
+        assertThat(request.messageAttributes()).isEmpty();
     }
 
     @Test
     @DisplayName("Deve reutilizar cache de URL da fila na segunda chamada")
     void publishForDiagnostics_ShouldUseCachedQueueUrl() {
         when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
-                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/production-service-queue").build());
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventForDiagnostics").build());
         when(sqsClient.sendMessage(any(SendMessageRequest.class)))
                 .thenReturn(SendMessageResponse.builder().messageId("msg-123").build());
-
-        ServiceOrderSqsPublisherGateway gateway = new ServiceOrderSqsPublisherGateway(
-                sqsClient, objectMapper, "production-service-queue"
-        );
 
         gateway.publishForDiagnostics("so-1");
         gateway.publishForDiagnostics("so-2");
@@ -83,11 +116,14 @@ class ServiceOrderSqsPublisherGatewayTest {
         when(sqsClient.sendMessage(any(SendMessageRequest.class)))
                 .thenReturn(SendMessageResponse.builder().messageId("msg-123").build());
 
-        ServiceOrderSqsPublisherGateway gateway = new ServiceOrderSqsPublisherGateway(
-                sqsClient, objectMapper, "http://sqs.us-east-1.amazonaws.com/123/direct-queue"
+        ServiceOrderSqsPublisherGateway directGateway = new ServiceOrderSqsPublisherGateway(
+                sqsClient,
+                objectMapper,
+                "http://sqs.us-east-1.amazonaws.com/123/eventForDiagnostics",
+                "http://sqs.us-east-1.amazonaws.com/123/eventGeneratePayment"
         );
 
-        gateway.publishForDiagnostics("so-direct");
+        directGateway.publishForDiagnostics("so-direct");
 
         verify(sqsClient, never()).getQueueUrl(any(GetQueueUrlRequest.class));
         verify(sqsClient).sendMessage(any(SendMessageRequest.class));
@@ -97,17 +133,13 @@ class ServiceOrderSqsPublisherGatewayTest {
     @DisplayName("Deve lançar exceção quando envio SQS falhar")
     void publishForDiagnostics_ShouldThrowException_WhenSqsFails() {
         when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
-                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/production-service-queue").build());
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventForDiagnostics").build());
         when(sqsClient.sendMessage(any(SendMessageRequest.class)))
                 .thenThrow(SqsException.builder().message("SQS error").build());
 
-        ServiceOrderSqsPublisherGateway gateway = new ServiceOrderSqsPublisherGateway(
-                sqsClient, objectMapper, "production-service-queue"
-        );
-
         assertThatThrownBy(() -> gateway.publishForDiagnostics("so-fail"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Erro ao publicar eventForDiagnostics no SQS");
+                .hasMessageContaining("Erro ao publicar na fila SQS eventForDiagnostics");
     }
 
     @Test
@@ -116,23 +148,29 @@ class ServiceOrderSqsPublisherGatewayTest {
         ObjectMapper mockMapper = mock(ObjectMapper.class);
         when(mockMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("JSON error") {});
 
-        ServiceOrderSqsPublisherGateway gateway = new ServiceOrderSqsPublisherGateway(
-                sqsClient, mockMapper, "production-service-queue"
+        ServiceOrderSqsPublisherGateway failGateway = new ServiceOrderSqsPublisherGateway(
+                sqsClient,
+                mockMapper,
+                "eventForDiagnostics",
+                "eventGeneratePayment"
         );
 
-        assertThatThrownBy(() -> gateway.publishForDiagnostics("so-json-fail"))
+        assertThatThrownBy(() -> failGateway.publishForDiagnostics("so-json-fail"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Erro ao serializar mensagem do tipo eventForDiagnostics");
+                .hasMessageContaining("Erro ao serializar mensagem para fila eventForDiagnostics");
     }
 
     @Test
     @DisplayName("Deve lançar exceção quando fila for vazia ou nula")
     void publishForDiagnostics_ShouldThrowException_WhenQueueIsNullOrEmpty() {
-        ServiceOrderSqsPublisherGateway gateway = new ServiceOrderSqsPublisherGateway(
-                sqsClient, objectMapper, ""
+        ServiceOrderSqsPublisherGateway emptyGateway = new ServiceOrderSqsPublisherGateway(
+                sqsClient,
+                objectMapper,
+                "",
+                ""
         );
 
-        assertThatThrownBy(() -> gateway.publishForDiagnostics("so-123"))
+        assertThatThrownBy(() -> emptyGateway.publishForDiagnostics("so-123"))
                 .isInstanceOf(RuntimeException.class);
     }
 }

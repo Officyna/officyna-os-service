@@ -127,6 +127,7 @@ class CustomerServiceOrderServiceTest {
         assertThat(labor2.getSituationDate()).isNotNull();
 
         verify(serviceOrderService).save(entity);
+        verify(serviceOrderService).generatePaymentForServiceOrder(orderId);
     }
 
     @Test

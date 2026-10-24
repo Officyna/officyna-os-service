@@ -684,5 +684,52 @@ class ServiceOrderServiceTest {
         assertThat(result.getSupplys().getTotalSupplyAmount()).isEqualTo(new BigDecimal("150.00"));
         verify(repository).save(entity);
     }
+
+    // ─────────────── handleDiagnosisCompleted ───────────────
+
+    @Test
+    @DisplayName("handleDiagnosisCompleted deve publicar eventGeneratePayment para serviços e suprimentos válidos")
+    void handleDiagnosisCompleted_ShouldPublishGeneratePayment() {
+        ServiceOrder entity = buildEntity("so-1", ServiceOrderStatus.EM_DIAGNOSTICO);
+
+        LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l-1").name("Troca").situation(LaborSituation.PENDENTE).build();
+        LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l-2").name("Alinhamento").situation(LaborSituation.REJEITADO).build();
+        entity.setLabors(new LaborsDTO(List.of(labor1, labor2), new BigDecimal("100.00")));
+
+        SupplyDetailDTO supply = SupplyDetailDTO.builder().id("s-1").name("Filtro").build();
+        entity.setSupplys(new SupplyDTO(List.of(supply), new BigDecimal("50.00")));
+
+        when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+
+        service.handleDiagnosisCompleted("so-1");
+
+        verify(eventPublisherGateway).publishGeneratePayment(
+                eq("so-1"),
+                argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
+                argThat(list -> list.size() == 1 && list.get(0).getId().equals("s-1"))
+        );
+    }
+
+    // ─────────────── generatePaymentForServiceOrder ───────────────
+
+    @Test
+    @DisplayName("generatePaymentForServiceOrder deve publicar apenas serviços com situation APROVADO")
+    void generatePaymentForServiceOrder_ShouldPublishOnlyApprovedLabors() {
+        ServiceOrder entity = buildEntity("so-2", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+        LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l-1").situation(LaborSituation.APROVADO).build();
+        LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l-2").situation(LaborSituation.REJEITADO).build();
+        entity.setLabors(new LaborsDTO(List.of(labor1, labor2), new BigDecimal("100.00")));
+
+        when(repository.findById("so-2")).thenReturn(Optional.of(entity));
+
+        service.generatePaymentForServiceOrder("so-2");
+
+        verify(eventPublisherGateway).publishGeneratePayment(
+                eq("so-2"),
+                argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
+                argThat(List::isEmpty)
+        );
+    }
 }
 
