@@ -34,7 +34,12 @@ public class ServiceOrderService {
                                VehicleSelectionService vehicleSelectionService,
                                LaborSelectionService laborSelectionService,
                                ServiceOrderMapper mapper) {
-        this(repository, customerAndMecnichalService, vehicleSelectionService, laborSelectionService, mapper, id -> {});
+        this(repository, customerAndMecnichalService, vehicleSelectionService, laborSelectionService, mapper, new ServiceOrderEventPublisherGateway() {
+            @Override
+            public void publishForDiagnostics(String serviceOrderId) {}
+            @Override
+            public void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies) {}
+        });
     }
 
     public ServiceOrderService(ServiceOrderRepository repository,
@@ -438,6 +443,44 @@ public class ServiceOrderService {
         );
 
         return saved;
+    }
+
+    public void handleDiagnosisCompleted(String serviceOrderId) {
+        log.info("Processando evento eventDiagnosisCompleted para ordem de serviço: {}", serviceOrderId);
+        ServiceOrder entity = this.findEntityById(serviceOrderId);
+
+        List<LaborDetailDTO> labors = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
+                ? entity.getLabors().getLaborsDetails().stream()
+                    .filter(l -> l.getSituation() == null || l.getSituation() != LaborSituation.REJEITADO)
+                    .toList()
+                : List.of();
+
+        List<SupplyDetailDTO> supplies = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
+                ? entity.getSupplys().getSupplysDetails()
+                : List.of();
+
+        eventPublisherGateway.publishGeneratePayment(serviceOrderId, labors, supplies);
+
+        log.info("eventGeneratePayment publicado com sucesso para ordem de serviço: {}", serviceOrderId);
+    }
+
+    public void generatePaymentForServiceOrder(String serviceOrderId) {
+        log.info("Publicando eventGeneratePayment para ordem de serviço: {}", serviceOrderId);
+        ServiceOrder entity = this.findEntityById(serviceOrderId);
+
+        List<LaborDetailDTO> approvedLabors = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
+                ? entity.getLabors().getLaborsDetails().stream()
+                    .filter(l -> LaborSituation.APROVADO.equals(l.getSituation()))
+                    .toList()
+                : List.of();
+
+        List<SupplyDetailDTO> supplies = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
+                ? entity.getSupplys().getSupplysDetails()
+                : List.of();
+
+        eventPublisherGateway.publishGeneratePayment(serviceOrderId, approvedLabors, supplies);
+
+        log.info("eventGeneratePayment pós-aprovação publicado com sucesso para ordem de serviço: {}", serviceOrderId);
     }
 
 
