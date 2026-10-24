@@ -27,5 +27,10 @@ aws:
   sqs:
     listener:
       enabled: false
-    inbound-queue: os-service-queue
-    production-queue: production-service-queue
+    queues:
+      event-for-diagnostics: eventForDiagnostics
+      event-diagnosis: eventDiagnosis
+      event-diagnosis-completed: eventDiagnosisCompleted
+      event-generate-payment: eventGeneratePayment
+      event-buget-generated: eventBugetGenerated
+      topic-aprovacao: topicAprovacao

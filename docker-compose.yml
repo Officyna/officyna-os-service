@@ -62,8 +62,12 @@ services:
       AWS_ENDPOINT: http://localstack:4566
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
-      AWS_SQS_INBOUND_QUEUE: os-service-queue
-      AWS_SQS_PRODUCTION_QUEUE: production-service-queue
+      AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS: eventForDiagnostics
+      AWS_SQS_QUEUE_EVENT_DIAGNOSIS: eventDiagnosis
+      AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED: eventDiagnosisCompleted
+      AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT: eventGeneratePayment
+      AWS_SQS_QUEUE_EVENT_BUGET_GENERATED: eventBugetGenerated
+      AWS_SQS_QUEUE_TOPIC_APROVACAO: topicAprovacao
     ports:
       - "8080:8080"
     healthcheck:
@@ -91,6 +95,23 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  sqs-admin:
+    image: pacovk/sqs-admin:latest
+    container_name: officyna-os-service-sqs-admin
+    environment:
+      SQS_ENDPOINT_URL: http://localstack:4566
+      SQS_AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "127.0.0.1:8088:3999"
+    depends_on:
+      localstack:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - officyna-network
