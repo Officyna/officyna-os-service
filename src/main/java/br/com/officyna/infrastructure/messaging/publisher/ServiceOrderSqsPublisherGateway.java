@@ -10,12 +10,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import br.com.officyna.infrastructure.logging.CorrelationConstants;
+import org.slf4j.MDC;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -69,14 +73,27 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
             String messageBody = objectMapper.writeValueAsString(payload);
             String queueUrl = resolveQueueUrl(targetQueue);
 
+            String correlationId = MDC.get(CorrelationConstants.CORRELATION_ID_KEY);
+            if (correlationId == null || correlationId.isBlank()) {
+                correlationId = UUID.randomUUID().toString();
+            }
+
+            Map<String, MessageAttributeValue> messageAttributes = Map.of(
+                    CorrelationConstants.CORRELATION_ID_HEADER, MessageAttributeValue.builder()
+                            .dataType("String")
+                            .stringValue(correlationId)
+                            .build()
+            );
+
             SendMessageRequest request = SendMessageRequest.builder()
                     .queueUrl(queueUrl)
                     .messageBody(messageBody)
+                    .messageAttributes(messageAttributes)
                     .build();
 
             sqsClient.sendMessage(request);
 
-            log.info("Mensagem publicada com sucesso na queueUrl={}", queueUrl);
+            log.info("Mensagem publicada com sucesso na queueUrl={}, correlationId={}", queueUrl, correlationId);
 
         } catch (JsonProcessingException e) {
             log.error("Falha ao serializar payload para a fila {}", targetQueue, e);

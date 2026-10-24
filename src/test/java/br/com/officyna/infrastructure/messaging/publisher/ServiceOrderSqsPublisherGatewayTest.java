@@ -5,6 +5,7 @@ import br.com.officyna.domain.serviceorder.dto.SupplyDetailDTO;
 import br.com.officyna.domain.serviceorder.enums.LaborSituation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.MDC;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlResponse;
@@ -38,6 +40,7 @@ class ServiceOrderSqsPublisherGatewayTest {
 
     @BeforeEach
     void setUp() {
+        MDC.clear();
         objectMapper = new ObjectMapper();
         gateway = new ServiceOrderSqsPublisherGateway(
                 sqsClient,
@@ -47,9 +50,14 @@ class ServiceOrderSqsPublisherGatewayTest {
         );
     }
 
+    @AfterEach
+    void tearDown() {
+        MDC.clear();
+    }
+
     @Test
-    @DisplayName("Deve publicar eventForDiagnostics para fila sem header eventType")
-    void publishForDiagnostics_ShouldPublishToQueueWithoutHeader() {
+    @DisplayName("Deve publicar eventForDiagnostics para fila com header correlationId gerado")
+    void publishForDiagnostics_ShouldPublishToQueueWithGeneratedCorrelationId() {
         when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
                 .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventForDiagnostics").build());
         when(sqsClient.sendMessage(any(SendMessageRequest.class)))
@@ -64,12 +72,14 @@ class ServiceOrderSqsPublisherGatewayTest {
         assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/eventForDiagnostics");
         assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-123\"");
         assertThat(request.messageBody()).contains("\"status\":\"RECEBIDA\"");
-        assertThat(request.messageAttributes()).isEmpty();
+        assertThat(request.messageAttributes()).containsKey("correlationId");
+        assertThat(request.messageAttributes().get("correlationId").stringValue()).isNotBlank();
     }
 
     @Test
-    @DisplayName("Deve publicar eventGeneratePayment para fila sem header eventType")
-    void publishGeneratePayment_ShouldPublishToQueueWithoutHeader() {
+    @DisplayName("Deve propagar correlationId do MDC na publicação do evento")
+    void publishGeneratePayment_ShouldPropagateMdcCorrelationId() {
+        MDC.put("correlationId", "corr-pub-789");
         when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
                 .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventGeneratePayment").build());
         when(sqsClient.sendMessage(any(SendMessageRequest.class)))
@@ -92,7 +102,8 @@ class ServiceOrderSqsPublisherGatewayTest {
         assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-456\"");
         assertThat(request.messageBody()).contains("Troca de óleo");
         assertThat(request.messageBody()).contains("Filtro");
-        assertThat(request.messageAttributes()).isEmpty();
+        assertThat(request.messageAttributes()).containsKey("correlationId");
+        assertThat(request.messageAttributes().get("correlationId").stringValue()).isEqualTo("corr-pub-789");
     }
 
     @Test

@@ -83,4 +83,28 @@ class CorrelationIdFilterTest {
         assertNull(MDC.get("httpMethod"));
         assertNull(MDC.get("requestUri"));
     }
+
+    @Test
+    @DisplayName("Deve priorizar o header correlationId quando presente")
+    void doFilterInternal_shouldPrioritizeCorrelationIdHeader() throws ServletException, IOException {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+
+        when(request.getHeader("correlationId")).thenReturn("primary-corr-id");
+        when(request.getHeader(HEADER_NAME)).thenReturn("legacy-corr-id");
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRequestURI()).thenReturn("/api/serviceorder");
+
+        doAnswer(invocation -> {
+            assertEquals("primary-corr-id", MDC.get("correlationId"));
+            return null;
+        }).when(chain).doFilter(request, response);
+
+        filter.doFilterInternal(request, response, chain);
+
+        verify(response).setHeader("correlationId", "primary-corr-id");
+        verify(response).setHeader("X-Correlation-ID", "primary-corr-id");
+        assertNull(MDC.get("correlationId"));
+    }
 }
