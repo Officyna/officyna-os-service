@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
@@ -29,7 +30,6 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserDetailsServiceImpl userDetailsService;
     private final CustomerRepository customerRepository;
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
@@ -57,8 +57,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String identifier = jwtService.extractUsername(token);
 
             if (identifier != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails;
-
                 if (jwtService.isLambdaToken(token)) {
                     logger.debug("Token gerado pela Lambda. Buscando cliente por email/documento: {}", identifier);
                     Customer customer = customerRepository.findByEmail(identifier)
@@ -73,17 +71,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             ? customer.getEmail()
                             : customer.getDocument();
 
-                    userDetails = new User(
+                    UserDetails userDetails = new User(
                             username,
                             "",
                             List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
                     );
-                } else {
-                    logger.debug("Token de usuário interno. Buscando na base de usuários: {}", identifier);
-                    userDetails = userDetailsService.loadUserByUsername(identifier);
-                }
 
-                if (jwtService.isTokenValid(token, userDetails)) {
+                    if (jwtService.isTokenValid(token, userDetails)) {
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities()
+                        );
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
+                } else if (jwtService.isTokenValid(token)) {
+                    logger.debug("Token de usuário interno (officyna-users-service). Validando claims stateless: {}", identifier);
+                    List<GrantedAuthority> authorities = jwtService.extractAuthorities(token);
+                    UserDetails userDetails = new User(identifier, "", authorities);
+
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()
                     );

@@ -108,9 +108,9 @@ Na raiz do projeto, execute:
 ```bash
 docker compose up -d mongodb mongo-express localstack sqs-admin
 ```
-* O container **`mongodb`** ficará disponível em `localhost:27017` (banco `officyna`).
+* O container **`mongodb`** ficará disponível em `localhost:27018` (banco `officyna`).
 * O container **`localstack`** ficará disponível em `localhost:4566` e executará automaticamente o script `localstack-init/init-sqs.sh`, criando as filas SQS (`eventForDiagnostics`, `eventDiagnosis`, `eventDiagnosisCompleted`, `eventGeneratePayment`, `eventBugetGenerated`, `topicAprovacao`).
-* O **`mongo-express`** ficará acessível em `http://localhost:8081` (usuário: `admin` / senha: `admin`).
+* O **`mongo-express`** ficará acessível em `http://localhost:8084` (usuário: `admin` / senha: `admin`).
 * O **`sqs-admin`** (painel visual das filas SQS) ficará acessível em `http://localhost:8088`.
 
 Verifique se os containers estão saudáveis (`healthy`):
@@ -166,7 +166,7 @@ docker compose down
 | **Swagger UI (OpenAPI)** | `http://localhost:8080/swagger-ui.html` | Documentação interativa dos endpoints |
 | **OpenAPI JSON** | `http://localhost:8080/api-docs` | Especificação OpenAPI bruta |
 | **Healthcheck (Actuator)** | `http://localhost:8080/actuator/health` | Deve retornar `{"status":"UP"}` |
-| **Mongo Express** | `http://localhost:8081` | Interface web do MongoDB (`admin` / `admin`) |
+| **Mongo Express** | `http://localhost:8084` | Interface web do MongoDB (`admin` / `admin`) |
 | **SQS Admin** | `http://localhost:8088` | Interface web para visualizar e gerenciar as filas SQS do LocalStack |
 | **Kong Gateway** *(Opção B)* | `http://localhost:8000/officyna` | Proxy reverso configurado no `Kong.yml` |
 
@@ -209,7 +209,7 @@ A maioria dos endpoints exige autenticação via **Bearer Token (JWT)**. Os usu�
 | Variável | Valor Padrão Local | Descrição |
 | :--- | :--- | :--- |
 | `SERVER_PORT` | `8080` | Porta HTTP da aplicação |
-| `MONGODB_URI` | `mongodb://localhost:27017/officyna` | URI de conexão com o MongoDB |
+| `MONGODB_URI` | `mongodb://localhost:27018/officyna` | URI de conexão com o MongoDB |
 | `AWS_ENDPOINT` | `http://localhost:4566` | Endpoint do LocalStack / AWS SQS |
 | `AWS_REGION` | `us-east-1` | Região AWS padrão |
 | `AWS_SQS_LISTENER_ENABLED` | `true` | Ativa/desativa o polling das filas SQS (`false` para rodar sem LocalStack) |
