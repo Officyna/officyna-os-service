@@ -64,8 +64,12 @@ public abstract class AbstractSqsQueueListener<T> {
 
     protected void processSingleMessage(String queueUrl, Message msg) {
         String correlationId = extractCorrelationId(msg);
+        String authorization = extractAuthorization(msg);
         try {
             MDC.put(CorrelationConstants.CORRELATION_ID_KEY, correlationId);
+            if (authorization != null && !authorization.isBlank()) {
+                MDC.put(CorrelationConstants.AUTHORIZATION_KEY, authorization);
+            }
             NewRelic.addCustomParameter(CorrelationConstants.CORRELATION_ID_KEY, correlationId);
 
             log.info("Processando mensagem SQS id={} da fila: {}", msg.messageId(), queueName);
@@ -86,7 +90,19 @@ public abstract class AbstractSqsQueueListener<T> {
                     msg.messageId(), queueName, msg.body(), e);
         } finally {
             MDC.remove(CorrelationConstants.CORRELATION_ID_KEY);
+            MDC.remove(CorrelationConstants.AUTHORIZATION_KEY);
         }
+    }
+
+    protected String extractAuthorization(Message msg) {
+        if (msg.hasMessageAttributes() && msg.messageAttributes() != null
+                && msg.messageAttributes().containsKey(CorrelationConstants.AUTHORIZATION_HEADER)) {
+            String val = msg.messageAttributes().get(CorrelationConstants.AUTHORIZATION_HEADER).stringValue();
+            if (val != null && !val.isBlank()) {
+                return val;
+            }
+        }
+        return null;
     }
 
     protected String extractCorrelationId(Message msg) {

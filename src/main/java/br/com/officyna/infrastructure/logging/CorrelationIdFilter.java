@@ -41,6 +41,10 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             MDC.put(CORRELATION_ID, correlationId);
             MDC.put(HTTP_METHOD, request.getMethod());
             MDC.put(REQUEST_URI, request.getRequestURI());
+            String authorization = request.getHeader(CorrelationConstants.AUTHORIZATION_HEADER);
+            if (authorization != null && !authorization.isBlank()) {
+                MDC.put(CorrelationConstants.AUTHORIZATION_KEY, authorization);
+            }
 
             NewRelic.addCustomParameter(CORRELATION_ID, correlationId);
 
@@ -53,6 +57,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             MDC.remove(CORRELATION_ID);
             MDC.remove(HTTP_METHOD);
             MDC.remove(REQUEST_URI);
+            MDC.remove(CorrelationConstants.AUTHORIZATION_KEY);
         }
     }
 }

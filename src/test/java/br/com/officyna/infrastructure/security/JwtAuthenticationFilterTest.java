@@ -74,6 +74,7 @@ class JwtAuthenticationFilterTest {
 
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
         assertEquals(email, SecurityContextHolder.getContext().getAuthentication().getName());
+        assertEquals(token, SecurityContextHolder.getContext().getAuthentication().getCredentials());
         assertTrue(SecurityContextHolder.getContext().getAuthentication().getAuthorities()
                 .stream().anyMatch(a -> "ROLE_CUSTOMER".equals(a.getAuthority())));
 
@@ -147,6 +148,7 @@ class JwtAuthenticationFilterTest {
 
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
         assertEquals(email, SecurityContextHolder.getContext().getAuthentication().getName());
+        assertEquals(token, SecurityContextHolder.getContext().getAuthentication().getCredentials());
         assertTrue(SecurityContextHolder.getContext().getAuthentication().getAuthorities()
                 .stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())));
         verify(jwtService, times(1)).isTokenValid(token);
