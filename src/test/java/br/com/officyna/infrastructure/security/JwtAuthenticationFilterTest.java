@@ -16,9 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,9 +30,6 @@ class JwtAuthenticationFilterTest {
 
     @Mock
     private JwtService jwtService;
-
-    @Mock
-    private UserDetailsServiceImpl userDetailsService;
 
     @Mock
     private CustomerRepository customerRepository;
@@ -83,7 +78,6 @@ class JwtAuthenticationFilterTest {
                 .stream().anyMatch(a -> "ROLE_CUSTOMER".equals(a.getAuthority())));
 
         verify(customerRepository, times(1)).findByEmail(email);
-        verifyNoInteractions(userDetailsService);
         verify(filterChain, times(1)).doFilter(request, response);
     }
 
@@ -112,7 +106,6 @@ class JwtAuthenticationFilterTest {
         assertEquals(document, SecurityContextHolder.getContext().getAuthentication().getName());
         verify(customerRepository, times(1)).findByEmail(document);
         verify(customerRepository, times(1)).findByDocument(document);
-        verifyNoInteractions(userDetailsService);
     }
 
     @Test
@@ -139,23 +132,45 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("Quando token não for da Lambda, deve buscar na base de usuários via userDetailsService")
-    void shouldAuthenticateInternalUser_WhenTokenNotFromLambda() throws ServletException, IOException {
+    @DisplayName("Quando token não for da Lambda, deve validar stateless e extrair roles das claims")
+    void shouldAuthenticateInternalUserStatelessly_WhenTokenNotFromLambda() throws ServletException, IOException {
         String token = "internal.jwt.token";
         String email = "admin@officyna.com";
-        UserDetails userDetails = new User(email, "pass", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         when(jwtService.extractUsername(token)).thenReturn(email);
         when(jwtService.isLambdaToken(token)).thenReturn(false);
-        when(userDetailsService.loadUserByUsername(email)).thenReturn(userDetails);
-        when(jwtService.isTokenValid(token, userDetails)).thenReturn(true);
+        when(jwtService.isTokenValid(token)).thenReturn(true);
+        when(jwtService.extractAuthorities(token)).thenReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
         filter.doFilterInternal(request, response, filterChain);
 
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
         assertEquals(email, SecurityContextHolder.getContext().getAuthentication().getName());
-        verify(userDetailsService, times(1)).loadUserByUsername(email);
+        assertTrue(SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                .stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())));
+        verify(jwtService, times(1)).isTokenValid(token);
+        verify(jwtService, times(1)).extractAuthorities(token);
+        verifyNoInteractions(customerRepository);
+        verify(filterChain, times(1)).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("Quando token interno for inválido, não deve autenticar no contexto")
+    void shouldNotAuthenticateInternalUser_WhenTokenInvalid() throws ServletException, IOException {
+        String token = "invalid.internal.token";
+        String email = "admin@officyna.com";
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(jwtService.extractUsername(token)).thenReturn(email);
+        when(jwtService.isLambdaToken(token)).thenReturn(false);
+        when(jwtService.isTokenValid(token)).thenReturn(false);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(jwtService, times(1)).isTokenValid(token);
+        verify(jwtService, never()).extractAuthorities(anyString());
         verifyNoInteractions(customerRepository);
         verify(filterChain, times(1)).doFilter(request, response);
     }
@@ -195,6 +210,21 @@ class JwtAuthenticationFilterTest {
         assertDoesNotThrow(() -> filter.doFilterInternal(request, response, filterChain));
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(filterChain, times(1)).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("Deve capturar erro inesperado e continuar a cadeia")
+    void shouldCatchUnexpectedException_AndContinueChain() throws ServletException, IOException {
+        String token = "error.jwt.token";
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(jwtService.extractUsername(token)).thenThrow(new RuntimeException("Erro inesperado"));
+
+        assertDoesNotThrow(() -> filter.doFilterInternal(request, response, filterChain));
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(request, times(1)).setAttribute("auth_error_message", "Unexpected authentication error");
         verify(filterChain, times(1)).doFilter(request, response);
     }
 }

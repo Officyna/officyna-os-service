@@ -7,11 +7,17 @@ import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -20,16 +26,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class JwtService {
 
-
     @Value("${jwt.secret}")
     private String secret;
 
     @Value("${jwt.expiration}")
     private long expiration;
 
-
     public String generateToken(UserDetails userDetails) {
-
         log.info("Generating JWT token for user: {}", userDetails.getUsername());
 
         String token = Jwts.builder()
@@ -40,78 +43,92 @@ public class JwtService {
                 .signWith(getSigningKey())
                 .compact();
 
-
-        log.info("JWT token generated successfully for user: {}",
-                userDetails.getUsername());
-
+        log.info("JWT token generated successfully for user: {}", userDetails.getUsername());
         return token;
     }
 
-
     private static @NonNull String getRole(UserDetails userDetails) {
-
         String roles = userDetails.getAuthorities()
                 .stream()
-                .map(a -> Objects.requireNonNull(a.getAuthority())
-                        .replace("ROLE_", ""))
+                .map(a -> Objects.requireNonNull(a.getAuthority()).replace("ROLE_", ""))
                 .collect(Collectors.joining(", "));
 
-
         log.debug("User roles extracted: {}", roles);
-
         return roles;
     }
 
-
     public String extractUsername(String token) {
-
         log.debug("Extracting username from JWT token");
-
         String username = extractClaim(token, Claims::getSubject);
-
         log.info("Username extracted from token: {}", username);
-
         return username;
     }
 
+    public List<GrantedAuthority> extractAuthorities(String token) {
+        Claims claims = extractAllClaims(token);
+        Object rolesClaim = claims.get("roles");
+
+        if (rolesClaim instanceof String rolesStr && !rolesStr.isBlank()) {
+            return Arrays.stream(rolesStr.split(","))
+                    .map(String::trim)
+                    .filter(r -> !r.isEmpty())
+                    .map(r -> r.startsWith("ROLE_") ? r : "ROLE_" + r)
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
+        }
+
+        if (rolesClaim instanceof Collection<?> rolesList) {
+            return rolesList.stream()
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .map(String::trim)
+                    .filter(r -> !r.isEmpty())
+                    .map(r -> r.startsWith("ROLE_") ? r : "ROLE_" + r)
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
+        }
+
+        return Collections.emptyList();
+    }
+
+    public boolean isTokenValid(String token) {
+        String username = extractUsername(token);
+        boolean valid = username != null && !username.isBlank() && !isTokenExpired(token);
+
+        if (valid) {
+            log.info("Stateless JWT token is valid for user: {}", username);
+        } else {
+            log.warn("Invalid stateless JWT token for user: {}", username);
+        }
+
+        return valid;
+    }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-
-        log.debug("Validating JWT token for user: {}",
-                userDetails.getUsername());
-
+        log.debug("Validating JWT token for user: {}", userDetails.getUsername());
 
         String username = extractUsername(token);
+        boolean valid = username.equals(userDetails.getUsername()) && !isTokenExpired(token);
 
-        boolean valid = username.equals(userDetails.getUsername())
-                && !isTokenExpired(token);
-
-
-        if(valid){
+        if (valid) {
             log.info("JWT token is valid for user: {}", username);
         } else {
             log.warn("Invalid JWT token for user: {}", username);
         }
 
-
         return valid;
     }
 
-
     private boolean isTokenExpired(String token) {
-
         Date expirationDate = extractClaim(token, Claims::getExpiration);
-
         boolean expired = expirationDate.before(new Date());
 
-
-        if(expired){
+        if (expired) {
             log.warn("JWT token expired at: {}", expirationDate);
         }
 
         return expired;
     }
-
 
     public Claims extractAllClaims(String token) {
         try {
@@ -129,10 +146,7 @@ public class JwtService {
         }
     }
 
-    public <T> T extractClaim(
-            String token,
-            Function<Claims, T> claimsResolver
-    ) {
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
@@ -155,21 +169,14 @@ public class JwtService {
         }
     }
 
-
     private SecretKey getSigningKey() {
-
         log.debug("Generating JWT signing key");
 
-
         byte[] keyBytes = Decoders.BASE64.decode(
-                java.util.Base64.getEncoder()
-                        .encodeToString(secret.getBytes())
+                java.util.Base64.getEncoder().encodeToString(secret.getBytes())
         );
 
-
         log.debug("JWT signing key generated successfully");
-
-
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }

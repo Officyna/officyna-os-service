@@ -4,11 +4,13 @@ import io.jsonwebtoken.ExpiredJwtException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -67,6 +69,15 @@ class JwtServiceTest {
     // ─── isTokenValid ─────────────────────────────────────────────────────────
 
     @Test
+    @DisplayName("Token válido deve ser aceito de forma stateless sem UserDetails")
+    void isTokenValidStateless_ShouldReturnTrue_ForValidToken() {
+        UserDetails user = buildUserDetails("joao@email.com", "ADMIN");
+        String token = jwtService.generateToken(user);
+
+        assertTrue(jwtService.isTokenValid(token));
+    }
+
+    @Test
     @DisplayName("Token válido deve ser aceito para o usuário correto")
     void isTokenValid_ShouldReturnTrue_ForMatchingUser() {
         UserDetails user = buildUserDetails("joao@email.com", "ADMIN");
@@ -96,6 +107,62 @@ class JwtServiceTest {
 
         // jjwt lança ExpiredJwtException ao parsear — não retorna false
         assertThrows(ExpiredJwtException.class, () -> jwtService.isTokenValid(expiredToken, user));
+        assertThrows(ExpiredJwtException.class, () -> jwtService.isTokenValid(expiredToken));
+    }
+
+    // ─── extractAuthorities ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Deve extrair authorities de claim roles em formato String")
+    void extractAuthorities_ShouldExtractFromCommaSeparatedString() {
+        UserDetails user = buildUserDetails("admin@officyna.com", "ADMIN");
+        String token = jwtService.generateToken(user);
+
+        List<GrantedAuthority> authorities = jwtService.extractAuthorities(token);
+
+        assertEquals(1, authorities.size());
+        assertEquals("ROLE_ADMIN", authorities.getFirst().getAuthority());
+    }
+
+    @Test
+    @DisplayName("Deve extrair authorities de claim roles em formato Collection")
+    void extractAuthorities_ShouldExtractFromCollectionClaim() {
+        String token = io.jsonwebtoken.Jwts.builder()
+                .subject("admin@officyna.com")
+                .claim("roles", List.of("ADMIN", "ROLE_MANAGER"))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + TEST_EXPIRATION))
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(
+                        io.jsonwebtoken.io.Decoders.BASE64.decode(
+                                java.util.Base64.getEncoder().encodeToString(TEST_SECRET.getBytes())
+                        )
+                ))
+                .compact();
+
+        List<GrantedAuthority> authorities = jwtService.extractAuthorities(token);
+
+        assertEquals(2, authorities.size());
+        assertTrue(authorities.stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())));
+        assertTrue(authorities.stream().anyMatch(a -> "ROLE_MANAGER".equals(a.getAuthority())));
+    }
+
+    @Test
+    @DisplayName("Deve retornar lista vazia quando claim roles não existir")
+    void extractAuthorities_ShouldReturnEmptyList_WhenNoRolesClaim() {
+        String token = io.jsonwebtoken.Jwts.builder()
+                .subject("admin@officyna.com")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + TEST_EXPIRATION))
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(
+                        io.jsonwebtoken.io.Decoders.BASE64.decode(
+                                java.util.Base64.getEncoder().encodeToString(TEST_SECRET.getBytes())
+                        )
+                ))
+                .compact();
+
+        List<GrantedAuthority> authorities = jwtService.extractAuthorities(token);
+
+        assertTrue(authorities.isEmpty());
     }
 
     // ─── extractUsername ──────────────────────────────────────────────────────
