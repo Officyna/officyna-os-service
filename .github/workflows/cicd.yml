@@ -236,6 +236,7 @@ jobs:
         run: |
           sed -i "s|image: ${IMAGE_NAME}:latest|image: ${IMAGE_NAME}:${{ needs.docker.outputs.image_tag }}|" k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
+          kubectl rollout restart deployment/officyna-os-service -n officyna
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/hpa.yaml
 
