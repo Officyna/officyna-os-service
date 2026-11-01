@@ -17,10 +17,17 @@ import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 @Component
@@ -78,12 +85,23 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
                 correlationId = UUID.randomUUID().toString();
             }
 
-            Map<String, MessageAttributeValue> messageAttributes = Map.of(
+            Map<String, MessageAttributeValue> messageAttributes = new HashMap<>();
+            messageAttributes.put(
                     CorrelationConstants.CORRELATION_ID_HEADER, MessageAttributeValue.builder()
                             .dataType("String")
                             .stringValue(correlationId)
                             .build()
             );
+
+            String authorization = resolveAuthorizationHeader();
+            if (authorization != null && !authorization.isBlank()) {
+                messageAttributes.put(
+                        CorrelationConstants.AUTHORIZATION_HEADER, MessageAttributeValue.builder()
+                                .dataType("String")
+                                .stringValue(authorization)
+                                .build()
+                );
+            }
 
             SendMessageRequest request = SendMessageRequest.builder()
                     .queueUrl(queueUrl)
@@ -117,5 +135,31 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
             log.debug("Resolvendo URL da fila SQS para o nome: {}", name);
             return sqsClient.getQueueUrl(GetQueueUrlRequest.builder().queueName(name).build()).queueUrl();
         });
+    }
+
+    private String resolveAuthorizationHeader() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
+                if (auth != null && !auth.isBlank()) {
+                    return auth;
+                }
+            }
+
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getCredentials() instanceof String credentials && !credentials.isBlank()) {
+                return credentials.startsWith("Bearer ") ? credentials : "Bearer " + credentials;
+            }
+
+            String mdcAuth = MDC.get(CorrelationConstants.AUTHORIZATION_KEY);
+            if (mdcAuth != null && !mdcAuth.isBlank()) {
+                return mdcAuth.startsWith("Bearer ") ? mdcAuth : "Bearer " + mdcAuth;
+            }
+        } catch (Exception e) {
+            log.debug("Could not resolve Authorization header for SQS propagation: {}", e.getMessage());
+        }
+        return null;
     }
 }

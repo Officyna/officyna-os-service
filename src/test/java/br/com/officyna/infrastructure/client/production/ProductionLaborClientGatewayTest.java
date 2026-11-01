@@ -6,12 +6,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -141,6 +148,103 @@ class ProductionLaborClientGatewayTest {
                     .andExpect(method(HttpMethod.GET))
                     .andExpect(header("correlationId", "mdc-corr-123"))
                     .andExpect(header("X-Correlation-ID", "mdc-corr-123"))
+                    .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
+
+            Optional<LaborDetailDTO> result = gateway.findById(laborId);
+
+            assertThat(result).isPresent();
+            mockServer.verify();
+        } finally {
+            MDC.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve propagar header Authorization a partir da requisicao HTTP atual")
+    void findById_WhenRequestContainsAuthorization_ShouldPropagateHeader() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer req-jwt-token");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            String laborId = "lab-auth-req";
+            String jsonResponse = """
+                    {
+                        "id": "lab-auth-req",
+                        "name": "Balanceamento",
+                        "description": "Balanceamento de rodas",
+                        "price": 80.00,
+                        "executionTimeInDays": 1,
+                        "active": true
+                    }
+                    """;
+
+            mockServer.expect(requestTo("http://localhost:8082/api/labors/" + laborId))
+                    .andExpect(method(HttpMethod.GET))
+                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer req-jwt-token"))
+                    .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
+
+            Optional<LaborDetailDTO> result = gateway.findById(laborId);
+
+            assertThat(result).isPresent();
+            mockServer.verify();
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve propagar header Authorization a partir do SecurityContext quando RequestContext nao possuir header")
+    void findById_WhenSecurityContextContainsToken_ShouldPropagateHeader() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("user@officyna.com", "sec-jwt-token", List.of())
+        );
+        try {
+            String laborId = "lab-auth-sec";
+            String jsonResponse = """
+                    {
+                        "id": "lab-auth-sec",
+                        "name": "Revisao",
+                        "description": "Revisao completa",
+                        "price": 300.00,
+                        "executionTimeInDays": 1,
+                        "active": true
+                    }
+                    """;
+
+            mockServer.expect(requestTo("http://localhost:8082/api/labors/" + laborId))
+                    .andExpect(method(HttpMethod.GET))
+                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer sec-jwt-token"))
+                    .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
+
+            Optional<LaborDetailDTO> result = gateway.findById(laborId);
+
+            assertThat(result).isPresent();
+            mockServer.verify();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    @DisplayName("Deve propagar header Authorization a partir do MDC como fallback")
+    void findById_WhenMdcContainsAuthorization_ShouldPropagateHeader() {
+        MDC.put("Authorization", "Bearer mdc-jwt-token");
+        try {
+            String laborId = "lab-auth-mdc";
+            String jsonResponse = """
+                    {
+                        "id": "lab-auth-mdc",
+                        "name": "Troca de Filtro",
+                        "description": "Filtro de ar",
+                        "price": 60.00,
+                        "executionTimeInDays": 1,
+                        "active": true
+                    }
+                    """;
+
+            mockServer.expect(requestTo("http://localhost:8082/api/labors/" + laborId))
+                    .andExpect(method(HttpMethod.GET))
+                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer mdc-jwt-token"))
                     .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
 
             Optional<LaborDetailDTO> result = gateway.findById(laborId);

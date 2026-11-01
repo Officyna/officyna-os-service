@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -59,7 +61,8 @@ public class ProductionLaborClientGateway implements ProductionLaborGateway {
 
             if (Boolean.FALSE.equals(response.active())) {
                 log.warn("Labor id {} is marked as inactive in production-service", id);
-                throw new ServiceOrderBusinessException("O serviço '" + response.name() + "' está inativo na produção.");
+                throw new ServiceOrderBusinessException(
+                        "O serviço '" + response.name() + "' está inativo na produção.");
             }
 
             LaborDetailDTO detailDTO = LaborDetailDTO.builder()
@@ -87,19 +90,38 @@ public class ProductionLaborClientGateway implements ProductionLaborGateway {
             throw e;
         } catch (RestClientException e) {
             log.error("Communication failure with production-service for labor id {}: {}", id, e.getMessage());
-            throw new ServiceOrderBusinessException("Falha na comunicação com o serviço de produção: " + e.getMessage());
+            throw new ServiceOrderBusinessException(
+                    "Falha na comunicação com o serviço de produção: " + e.getMessage());
         }
     }
 
     private void propagateHeaders(HttpHeaders headers) {
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
+            String auth = null;
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
-                String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
-                if (auth != null && !auth.isBlank()) {
-                    headers.set(HttpHeaders.AUTHORIZATION, auth);
+                auth = request.getHeader(HttpHeaders.AUTHORIZATION);
+            }
+
+            if (auth == null || auth.isBlank()) {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                if (authentication != null && authentication.getCredentials() instanceof String credentials
+                        && !credentials.isBlank()) {
+                    auth = credentials.startsWith("Bearer ") ? credentials : "Bearer " + credentials;
                 }
+            }
+
+            if (auth == null || auth.isBlank()) {
+                String mdcAuth = MDC.get(CorrelationConstants.AUTHORIZATION_KEY);
+                if (mdcAuth != null && !mdcAuth.isBlank()) {
+                    auth = mdcAuth.startsWith("Bearer ") ? mdcAuth : "Bearer " + mdcAuth;
+                }
+            }
+
+            if (auth != null && !auth.isBlank()) {
+                headers.set(HttpHeaders.AUTHORIZATION, auth);
             }
 
             String correlationId = MDC.get(CorrelationConstants.CORRELATION_ID_KEY);
