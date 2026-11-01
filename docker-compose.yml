@@ -63,9 +63,11 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS: eventForDiagnostics
+      AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnosticsDlq
       AWS_SQS_QUEUE_EVENT_DIAGNOSIS: eventDiagnosis
       AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED: eventDiagnosisCompleted
       AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT: eventGeneratePayment
+      AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT_DLQ: eventGeneratePaymentDlq
       AWS_SQS_QUEUE_EVENT_BUGET_GENERATED: eventBugetGenerated
       AWS_SQS_QUEUE_TOPIC_APROVACAO: topicAprovacao
     ports:

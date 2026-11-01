@@ -25,12 +25,16 @@ aws:
   access-key: test
   secret-key: test
   sqs:
+    init:
+      enabled: false
     listener:
       enabled: false
     queues:
       event-for-diagnostics: eventForDiagnostics
+      event-for-diagnostics-dlq: eventForDiagnosticsDlq
       event-diagnosis: eventDiagnosis
       event-diagnosis-completed: eventDiagnosisCompleted
       event-generate-payment: eventGeneratePayment
+      event-generate-payment-dlq: eventGeneratePaymentDlq
       event-buget-generated: eventBugetGenerated
       topic-aprovacao: topicAprovacao

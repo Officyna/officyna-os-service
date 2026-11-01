@@ -136,6 +136,26 @@ jobs:
 #          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Criar filas SQS e DLQs publicadas pelo os-service
+        run: |
+          QUEUES=("eventForDiagnostics" "eventGeneratePayment")
+
+          for QUEUE in "${QUEUES[@]}"; do
+            DLQ="${QUEUE}Dlq"
+            echo "Criando/verificando DLQ: ${DLQ}..."
+            DLQ_URL=$(aws sqs create-queue --queue-name "${DLQ}" --query "QueueUrl" --output text)
+            DLQ_ARN=$(aws sqs get-queue-attributes --queue-url "${DLQ_URL}" --attribute-names QueueArn --query "Attributes.QueueArn" --output text)
+
+            echo "Criando/verificando fila principal: ${QUEUE} vinculada à DLQ (${DLQ_ARN})..."
+            QUEUE_URL=$(aws sqs create-queue --queue-name "${QUEUE}" --query "QueueUrl" --output text)
+
+            aws sqs set-queue-attributes \
+              --queue-url "${QUEUE_URL}" \
+              --attributes "{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"${DLQ_ARN}\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"}"
+
+            echo "Fila ${QUEUE} (${QUEUE_URL}) e DLQ ${DLQ} (${DLQ_URL}) configuradas com sucesso."
+          done
+
       - name: Ler endpoint do banco (SSM Parameter Store)
         id: docdb
         run: |
@@ -333,6 +353,16 @@ jobs:
           kubectl delete -f k8s/kong-service-admin.yaml --ignore-not-found=true || true
           kubectl delete -f k8s/kong-deployment.yaml --ignore-not-found=true || true
           kubectl delete -f k8s/kong-declarative-config.yaml --ignore-not-found=true || true
+
+      - name: Remover filas SQS e DLQs publicadas pelo os-service
+        run: |
+          for QUEUE in "eventForDiagnostics" "eventForDiagnosticsDlq" "eventGeneratePayment" "eventGeneratePaymentDlq"; do
+            QUEUE_URL=$(aws sqs get-queue-url --queue-name "${QUEUE}" --query "QueueUrl" --output text 2>/dev/null || true)
+            if [ -n "${QUEUE_URL}" ] && [ "${QUEUE_URL}" != "None" ]; then
+              echo "Removendo fila SQS: ${QUEUE} (${QUEUE_URL})..."
+              aws sqs delete-queue --queue-url "${QUEUE_URL}" || true
+            fi
+          done
 
       - name: Aguardar remoção do LoadBalancer
         run: |

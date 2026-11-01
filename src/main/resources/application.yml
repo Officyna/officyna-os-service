@@ -48,15 +48,19 @@ aws:
   access-key: ${AWS_ACCESS_KEY_ID:test}
   secret-key: ${AWS_SECRET_ACCESS_KEY:test}
   sqs:
+    init:
+      enabled: ${AWS_SQS_INIT_ENABLED:true}
     listener:
       enabled: ${AWS_SQS_LISTENER_ENABLED:true}
       wait-time-seconds: ${AWS_SQS_WAIT_TIME_SECONDS:5}
       poll-delay-ms: ${AWS_SQS_POLL_DELAY_MS:2000}
     queues:
       event-for-diagnostics: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS:eventForDiagnostics}
+      event-for-diagnostics-dlq: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS_DLQ:eventForDiagnosticsDlq}
       event-diagnosis: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS:eventDiagnosis}
       event-diagnosis-completed: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED:eventDiagnosisCompleted}
       event-generate-payment: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT:eventGeneratePayment}
+      event-generate-payment-dlq: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT_DLQ:eventGeneratePaymentDlq}
       event-buget-generated: ${AWS_SQS_QUEUE_EVENT_BUGET_GENERATED:eventBugetGenerated}
       topic-aprovacao: ${AWS_SQS_QUEUE_TOPIC_APROVACAO:topicAprovacao}
-
+
