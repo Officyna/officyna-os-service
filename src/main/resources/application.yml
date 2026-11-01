@@ -6,6 +6,7 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
 
 jwt:
   secret: ${JWT_SECRET:officyna-secret-key-change-in-production-min-256bits}
