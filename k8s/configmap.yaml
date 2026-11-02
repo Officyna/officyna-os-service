@@ -13,7 +13,7 @@ data:
   LOG_LEVEL_APP: "INFO"
   LOG_LEVEL_SECURITY: "INFO"
   DATABASE_SEED_ENABLED: "true"
-  PRODUCTION_SERVICE_URL: "http://officyna-production-service"
+  PRODUCTION_SERVICE_URL: "http://production-execution-service"
   AWS_REGION: "us-east-1"
   AWS_ENDPOINT: ""
   AWS_SQS_INIT_ENABLED: "true"
