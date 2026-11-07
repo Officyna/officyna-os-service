@@ -59,9 +59,14 @@ aws:
       event-for-diagnostics: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS:eventForDiagnostics}
       event-for-diagnostics-dlq: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS_DLQ:eventForDiagnosticsDlq}
       event-diagnosis: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS:eventDiagnosis}
+      event-diagnosis-dlq: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_DLQ:eventDiagnosisDlq}
       event-diagnosis-completed: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED:eventDiagnosisCompleted}
+      event-diagnosis-completed-dlq: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED_DLQ:eventDiagnosisCompletedDlq}
       event-generate-payment: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT:eventGeneratePayment}
       event-generate-payment-dlq: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT_DLQ:eventGeneratePaymentDlq}
       event-buget-generated: ${AWS_SQS_QUEUE_EVENT_BUGET_GENERATED:eventBugetGenerated}
+      event-buget-generated-dlq: ${AWS_SQS_QUEUE_EVENT_BUGET_GENERATED_DLQ:eventBugetGeneratedDlq}
+      event-service-order-recused: ${AWS_SQS_QUEUE_EVENT_SERVICE_ORDER_RECUSED:eventServiceOrderRecused}
       topic-aprovacao: ${AWS_SQS_QUEUE_TOPIC_APROVACAO:topicAprovacao}
+      topic-rejeicao: ${AWS_SQS_QUEUE_TOPIC_REJEICAO:topicRejeicao}
 

@@ -5,7 +5,8 @@ import br.com.officyna.infrastructure.persistence.mongodb.model.ServiceOrderDocu
 import org.springframework.stereotype.Component;
 
 /**
- * Mapper para converter entre ServiceOrderEntity (domínio) e ServiceOrderDocument (infraestrutura).
+ * Mapper para converter entre ServiceOrderEntity (domínio) e
+ * ServiceOrderDocument (infraestrutura).
  */
 @Component
 public class ServiceOrderEntityDocumentMapper {
@@ -33,6 +34,9 @@ public class ServiceOrderEntityDocumentMapper {
                 .status(entity.getStatus() != null ? entity.getStatus().name() : null)
                 .informationText(entity.getInformationText())
                 .totalBudgetAmount(entity.getTotalBudgetAmount())
+                .paymentLink(entity.getPaymentLink())
+                .statusPayment(entity.getStatusPayment())
+                .paymentDescription(entity.getPaymentDescription())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -58,12 +62,16 @@ public class ServiceOrderEntityDocumentMapper {
                 .finalizationDate(document.getFinalizationDate())
                 .deliveryDate(document.getDeliveryDate())
                 .refuseDate(document.getRefuseDate())
-                .status(document.getStatus() != null ? br.com.officyna.domain.serviceorder.enums.ServiceOrderStatus.valueOf(document.getStatus()) : null)
+                .status(document.getStatus() != null
+                        ? br.com.officyna.domain.serviceorder.enums.ServiceOrderStatus.valueOf(document.getStatus())
+                        : null)
                 .informationText(document.getInformationText())
                 .totalBudgetAmount(document.getTotalBudgetAmount())
+                .paymentLink(document.getPaymentLink())
+                .statusPayment(document.getStatusPayment())
+                .paymentDescription(document.getPaymentDescription())
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
                 .build();
     }
 }
-

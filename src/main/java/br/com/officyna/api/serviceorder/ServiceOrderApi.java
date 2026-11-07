@@ -23,176 +23,135 @@ import java.util.List;
 @Tag(name = "ServiceOrder", description = "Service Order management")
 @SecurityRequirement(name = "bearerAuth")
 @ApiResponses({
-        @ApiResponse(
-                responseCode = "500",
-                description = "Internal server error",
-                content = @Content(
-                        schema = @Schema(implementation = ErrorResponse.class)
-                )
-        ),
-        @ApiResponse(
-                responseCode = "400",
-                description = "Bad request",
-                content = @Content(
-                        schema = @Schema(implementation = ErrorResponse.class)
-                )
-        ),
-        @ApiResponse(
-                responseCode = "404",
-                description = "Not found",
-                content = @Content(
-                        schema = @Schema(implementation = ErrorResponse.class)
-                )
-        )
+                @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+                @ApiResponse(responseCode = "400", description = "Bad request", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+                @ApiResponse(responseCode = "404", description = "Not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
 })
 public interface ServiceOrderApi {
 
-    @GetMapping
-    @Operation(summary = "List all service orders")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode ="200",description ="List returned successfully",
-                    content = @Content(
-                            array = @ArraySchema(
-                                    schema = @Schema(implementation = ServiceOrderResponse.class))
-                    )
-            )
-    })
-    ResponseEntity<List<ServiceOrderResponse>> findAll();
+        @GetMapping
+        @Operation(summary = "List all service orders")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "List returned successfully", content = @Content(array = @ArraySchema(schema = @Schema(implementation = ServiceOrderResponse.class))))
+        })
+        ResponseEntity<List<ServiceOrderResponse>> findAll();
 
-    @GetMapping("/{id}")
-    @Operation(summary = "Find Service Order by ID")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Service order found",
-                    content = @Content(
-                            schema = @Schema(implementation = ServiceOrderResponse.class)
-                    ))
-    })
-    ResponseEntity<ServiceOrderResponse> findById(
-            @Parameter(description = "Service order ID") @PathVariable String id);
+        @GetMapping("/{id}")
+        @Operation(summary = "Find Service Order by ID")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Service order found", content = @Content(schema = @Schema(implementation = ServiceOrderResponse.class)))
+        })
+        ResponseEntity<ServiceOrderResponse> findById(
+                        @Parameter(description = "Service order ID") @PathVariable String id);
 
-    @GetMapping("/number/{serviceOrderNumber}")
-    @Operation(summary = "Find Service Order by number")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Service order found",
-                    content = @Content(
-                            schema = @Schema(implementation = ServiceOrderResponse.class)
-                    ))
-    })
-    ResponseEntity<ServiceOrderResponse> findByServiceOrderNumber(
-            @Parameter(description = "Service order number") @PathVariable Long serviceOrderNumber);
+        @GetMapping("/number/{serviceOrderNumber}")
+        @Operation(summary = "Find Service Order by number")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Service order found", content = @Content(schema = @Schema(implementation = ServiceOrderResponse.class)))
+        })
+        ResponseEntity<ServiceOrderResponse> findByServiceOrderNumber(
+                        @Parameter(description = "Service order number") @PathVariable Long serviceOrderNumber);
 
-    @PostMapping()
-    @Operation(summary = "Create a new Service order")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "Service order created",
-                    content = @Content(
-                            schema = @Schema(implementation = ServiceOrderResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<ServiceOrderResponse> createServiceOrder(@Valid NewServiceOrderRequest request);
+        @PostMapping()
+        @Operation(summary = "Create a new Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "201", description = "Service order created", content = @Content(schema = @Schema(implementation = ServiceOrderResponse.class)))
+        })
+        ResponseEntity<ServiceOrderResponse> createServiceOrder(@Valid NewServiceOrderRequest request);
 
-    @PatchMapping("/{id}")
-    @Operation(summary = "Update a Service order")
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Service order updated",
-                    content = @Content(
-                            schema = @Schema(implementation = ServiceOrderResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<ServiceOrderResponse> updateServiceOrder(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @Valid @RequestBody ExistServiceOrderRequest request);
+        @PatchMapping("/{id}")
+        @Operation(summary = "Update a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Service order updated", content = @Content(schema = @Schema(implementation = ServiceOrderResponse.class)))
+        })
+        ResponseEntity<ServiceOrderResponse> updateServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @Valid @RequestBody ExistServiceOrderRequest request);
 
+        @PutMapping("/{id}/add-labors")
+        @Operation(summary = "Add labors to a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Labors added to the service order")
+        })
+        ResponseEntity<ServiceOrderResponse> addLaborInServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @RequestBody List<LaborsRequest> laborsIdList);
 
-    @PutMapping("/{id}/add-labors")
-    @Operation(summary = "Add labors to a Service order")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Labors added to the service order")
-    })
-    ResponseEntity<ServiceOrderResponse> addLaborInServiceOrder(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @RequestBody List<LaborsRequest> laborsIdList);
+        @PutMapping("/{id}/remove-labors/{laborId}")
+        @Operation(summary = "Delete labor from a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Labor removed from the service order")
+        })
+        ResponseEntity<ServiceOrderResponse> removeLaborFromServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @Parameter(description = "Labor ID") @PathVariable String laborId);
 
-    @PutMapping("/{id}/remove-labors/{laborId}")
-    @Operation(summary = "Delete labor from a Service order")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Labor removed from the service order")
-    })
-    ResponseEntity<ServiceOrderResponse> removeLaborFromServiceOrder(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @Parameter(description = "Labor ID") @PathVariable String laborId);
+        @RequestMapping(value = "/{id}/add-supply", method = { RequestMethod.PATCH, RequestMethod.PUT })
+        @Operation(summary = "Add supplys to a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Supplys added to the service order")
+        })
+        ResponseEntity<ServiceOrderResponse> addSupplyInServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @RequestBody List<SupplysRequest> laborsIdList);
 
-    @RequestMapping(value = "/{id}/add-supply", method = {RequestMethod.PATCH, RequestMethod.PUT})
-    @Operation(summary = "Add supplys to a Service order")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Supplys added to the service order")
-    })
-    ResponseEntity<ServiceOrderResponse> addSupplyInServiceOrder(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @RequestBody List<SupplysRequest> laborsIdList);
+        @PutMapping("/{id}/remove-supply/{supplyId}")
+        @Operation(summary = "Delete supplys from a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Supply removed from the service order")
+        })
+        ResponseEntity<ServiceOrderResponse> removeSupplyFromServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @Parameter(description = "Supply ID") @PathVariable String supplyId);
 
-    @PutMapping("/{id}/remove-supply/{supplyId}")
-    @Operation(summary = "Delete supplys from a Service order")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Supply removed from the service order")
-    })
-    ResponseEntity<ServiceOrderResponse> removeSupplyFromServiceOrder(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @Parameter(description = "Supply ID") @PathVariable String supplyId);
+        @DeleteMapping("/{id}")
+        @Operation(summary = "Delete a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Service order deleted")
+        })
+        ResponseEntity<Void> deleteServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id);
 
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Delete a Service order")
-    @ApiResponses({
-        @ApiResponse(
-                responseCode = "200",
-                description = "Service order deleted"
-        )
-    })
-    ResponseEntity<Void> deleteServiceOrder(
-            @Parameter(description = "Service order ID") @PathVariable String id);
+        @RequestMapping(value = "/{id}/start-labor/{laborId}", method = { RequestMethod.PATCH, RequestMethod.PUT })
+        @Operation(summary = "Start a labor in a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Labor started in the service order")
+        })
+        ResponseEntity<ServiceOrderResponse> startLabor(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @Parameter(description = "Labor ID") @PathVariable String laborId);
 
-    @RequestMapping(value = "/{id}/start-labor/{laborId}", method = {RequestMethod.PATCH, RequestMethod.PUT})
-    @Operation(summary = "Start a labor in a Service order")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Labor started in the service order")
-    })
-    ResponseEntity<ServiceOrderResponse> startLabor(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @Parameter(description = "Labor ID") @PathVariable String laborId);
+        @RequestMapping(value = "/{id}/finish-labor/{laborId}", method = { RequestMethod.PATCH, RequestMethod.PUT })
+        @Operation(summary = "Finish a labor in a Service order")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Labor finished in the service order")
+        })
+        ResponseEntity<ServiceOrderResponse> finishLabor(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @Parameter(description = "Labor ID") @PathVariable String laborId);
 
-    @RequestMapping(value = "/{id}/finish-labor/{laborId}", method = {RequestMethod.PATCH, RequestMethod.PUT})
-    @Operation(summary = "Finish a labor in a Service order")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Labor finished in the service order")
-    })
-    ResponseEntity<ServiceOrderResponse> finishLabor(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @Parameter(description = "Labor ID") @PathVariable String laborId);
+        @PatchMapping("/{id}/update-status/")
+        @Operation(summary = "Status updated")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Status updated")
+        })
+        ResponseEntity<ServiceOrderResponse> updateStatus(
+                        @Parameter(description = "Service order ID") @PathVariable String id,
+                        @Parameter(description = "Status") @RequestParam ServiceOrderStatus status);
 
-    @PatchMapping("/{id}/update-status/")
-    @Operation(summary = "Status updated")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Status updated")
-    })
-    ResponseEntity<ServiceOrderResponse> updateStatus(
-            @Parameter(description = "Service order ID") @PathVariable String id,
-            @Parameter(description = "Status") @RequestParam ServiceOrderStatus status);
+        @PostMapping("{id}/send-os")
+        @Operation(summary = "Service order send to customer")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Sucesfull")
+        })
+        ResponseEntity<SendToCustomerResponse> sendToCustomer(
+                        @Parameter(description = "Service order ID") @PathVariable String id);
 
-    @PostMapping("{id}/send-os")
-    @Operation(summary = "Service order send to customer")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Sucesfull")
-    })
-    ResponseEntity<SendToCustomerResponse> sendToCustomer(@Parameter(description = "Service order ID" )@PathVariable String id);
+        @RequestMapping(value = "/{id}/cancel", method = { RequestMethod.PATCH, RequestMethod.POST })
+        @Operation(summary = "Cancel a Service order if not in execution")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Service order cancelled")
+        })
+        ResponseEntity<ServiceOrderResponse> cancelServiceOrder(
+                        @Parameter(description = "Service order ID") @PathVariable String id);
 }

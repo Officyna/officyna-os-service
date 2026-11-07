@@ -55,6 +55,12 @@ public class ServiceOrder {
 
     private BigDecimal totalBudgetAmount;
 
+    private String paymentLink;
+
+    private String statusPayment;
+
+    private String paymentDescription;
+
     @Setter(NONE)
     private LocalDateTime createdAt;
 
@@ -104,8 +110,11 @@ public class ServiceOrder {
                 throw new ServiceOrderBusinessException("Apenas ordens FINALIZADAS podem ser consideradas entregues");
             }
         }else if(status.equals(ServiceOrderStatus.RECUSADA)){
-            if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(this.status)) {
-                throw new ServiceOrderBusinessException("Apenas ordens AGUARDANDO APROVAÇÃO podem ser recusadas.");
+            if (ServiceOrderStatus.EM_EXECUCAO.equals(this.status)) {
+                throw new ServiceOrderBusinessException("Não é possível cancelar porque já está em execução.");
+            }
+            if (ServiceOrderStatus.FINALIZADA.equals(this.status) || ServiceOrderStatus.ENTREGUE.equals(this.status)) {
+                throw new ServiceOrderBusinessException("Apenas ordens AGUARDANDO APROVAÇÃO ou não iniciadas podem ser recusadas.");
             }
         }
         setTimeDateByStatus(status);
@@ -114,7 +123,7 @@ public class ServiceOrder {
 
     private void validateLaborsForFinishServiceOrder() {
         List<LaborDetailDTO> labors = this.getLabors().getLaborsDetails().stream()
-                .filter(item->item.getSituation()!= LaborSituation.REJEITADO)
+                .filter(item -> item.getSituation() != LaborSituation.REJEITADO)
                 .toList();
         List<String> openLabors = new java.util.ArrayList<>();
         labors.forEach(item -> {
@@ -123,25 +132,28 @@ public class ServiceOrder {
             }
         });
         if (!openLabors.isEmpty()) {
-            throw new ServiceOrderBusinessException("Não é possível finalizar ordem com serviços em aberto. Serviços pendentes: " + openLabors);
+            throw new ServiceOrderBusinessException(
+                    "Não é possível finalizar ordem com serviços em aberto. Serviços pendentes: " + openLabors);
         }
     }
 
-    private void validateLaborsForAProvalStatus(){
-        if(this.getLabors() !=null && this.getLabors().getLaborsDetails() != null){
+    private void validateLaborsForAProvalStatus() {
+        if (this.getLabors() != null && this.getLabors().getLaborsDetails() != null) {
             List<String> pendingLabors = this.getLabors().getLaborsDetails().stream()
                     .filter(item -> LaborSituation.PENDENTE.equals(item.getSituation()))
                     .map(item -> item.getLaborId() != null ? item.getLaborId() : "desconhecido")
                     .toList();
             if (!pendingLabors.isEmpty()) {
-                throw new ServiceOrderBusinessException("Todos os serviços devem ser analisados e rejeitados ou aprovados. Serviços pendentes: " + pendingLabors);
+                throw new ServiceOrderBusinessException(
+                        "Todos os serviços devem ser analisados e rejeitados ou aprovados. Serviços pendentes: "
+                                + pendingLabors);
             }
-        } else{
+        } else {
             throw new ServiceOrderBusinessException("A O.S precisa ter ao menos um serviço");
         }
     }
 
-    private void setTimeDateByStatus(ServiceOrderStatus status){
+    private void setTimeDateByStatus(ServiceOrderStatus status) {
         LocalDateTime now = LocalDateTime.now();
         switch (status) {
             case RECEBIDA -> this.setRegistrationDate(now);

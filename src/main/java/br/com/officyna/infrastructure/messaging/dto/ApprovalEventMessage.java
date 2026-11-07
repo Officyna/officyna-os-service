@@ -17,4 +17,12 @@ public class ApprovalEventMessage {
 
     @JsonAlias({"status_payment", "paymentStatus"})
     private String statusPayment;
+
+    @JsonAlias({"paymentDescription", "reason"})
+    private String description;
+
+    public ApprovalEventMessage(String serviceOrderId, String statusPayment) {
+        this.serviceOrderId = serviceOrderId;
+        this.statusPayment = statusPayment;
+    }
 }

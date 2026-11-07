@@ -33,8 +33,13 @@ aws:
       event-for-diagnostics: eventForDiagnostics
       event-for-diagnostics-dlq: eventForDiagnosticsDlq
       event-diagnosis: eventDiagnosis
+      event-diagnosis-dlq: eventDiagnosisDlq
       event-diagnosis-completed: eventDiagnosisCompleted
+      event-diagnosis-completed-dlq: eventDiagnosisCompletedDlq
       event-generate-payment: eventGeneratePayment
       event-generate-payment-dlq: eventGeneratePaymentDlq
       event-buget-generated: eventBugetGenerated
+      event-buget-generated-dlq: eventBugetGeneratedDlq
+      event-service-order-recused: eventServiceOrderRecused
       topic-aprovacao: topicAprovacao
+      topic-rejeicao: topicRejeicao

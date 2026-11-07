@@ -202,4 +202,16 @@ class ServiceOrderControllerAdapterTest {
         verify(service).sendToCustomer("id");
         assertThat(result.message()).contains("enviada para o cliente");
     }
+
+    @Test
+    @DisplayName("cancelServiceOrder deve chamar o use case e apresentar o resultado")
+    void cancelServiceOrder_ShouldInvokeUseCaseAndPresent() {
+        ServiceOrder cancelled = mock(ServiceOrder.class);
+        ServiceOrderResponse response = mock(ServiceOrderResponse.class);
+
+        when(service.cancelServiceOrder("id")).thenReturn(cancelled);
+        when(presenter.toResponse(cancelled)).thenReturn(response);
+
+        assertSame(response, adapter.cancelServiceOrder("id"));
+    }
 }

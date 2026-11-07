@@ -22,478 +22,557 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ServiceOrderService {
 
-    private final ServiceOrderRepository repository;
-    private final CustomerAndMecnichalService customerAndMecnichalService;
-    private final VehicleSelectionService vehicleSelectionService;
-    private final LaborSelectionService laborSelectionService;
-    private final ServiceOrderMapper mapper;
-    private final ServiceOrderEventPublisherGateway eventPublisherGateway;
+        private final ServiceOrderRepository repository;
+        private final CustomerAndMecnichalService customerAndMecnichalService;
+        private final VehicleSelectionService vehicleSelectionService;
+        private final LaborSelectionService laborSelectionService;
+        private final ServiceOrderMapper mapper;
+        private final ServiceOrderEventPublisherGateway eventPublisherGateway;
 
-    public ServiceOrderService(ServiceOrderRepository repository,
-                               CustomerAndMecnichalService customerAndMecnichalService,
-                               VehicleSelectionService vehicleSelectionService,
-                               LaborSelectionService laborSelectionService,
-                               ServiceOrderMapper mapper) {
-        this(repository, customerAndMecnichalService, vehicleSelectionService, laborSelectionService, mapper, new ServiceOrderEventPublisherGateway() {
-            @Override
-            public void publishForDiagnostics(String serviceOrderId) {}
-            @Override
-            public void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies) {}
-        });
-    }
+        public ServiceOrderService(ServiceOrderRepository repository,
+                        CustomerAndMecnichalService customerAndMecnichalService,
+                        VehicleSelectionService vehicleSelectionService,
+                        LaborSelectionService laborSelectionService,
+                        ServiceOrderMapper mapper) {
+                this(repository, customerAndMecnichalService, vehicleSelectionService, laborSelectionService, mapper,
+                                new ServiceOrderEventPublisherGateway() {
+                                        @Override
+                                        public void publishForDiagnostics(String serviceOrderId) {
+                                        }
 
-    public ServiceOrderService(ServiceOrderRepository repository,
-                               CustomerAndMecnichalService customerAndMecnichalService,
-                               VehicleSelectionService vehicleSelectionService,
-                               LaborSelectionService laborSelectionService,
-                               ServiceOrderMapper mapper,
-                               ServiceOrderEventPublisherGateway eventPublisherGateway) {
-        this.repository = repository;
-        this.customerAndMecnichalService = customerAndMecnichalService;
-        this.vehicleSelectionService = vehicleSelectionService;
-        this.laborSelectionService = laborSelectionService;
-        this.mapper = mapper;
-        this.eventPublisherGateway = eventPublisherGateway;
-    }
-
-    private ServiceOrder findEntityById(String id) {
-        log.info("Finding service order by id: {}", id);
-
-        ServiceOrder serviceOrder = repository.findById(id)
-                .orElseThrow(() -> {
-                    log.warn("Service order not found by id: {}", id);
-                    return ServiceOrderNotFoundException.of(id);
-                });
-
-        log.debug("Service order found by id: {}", id);
-
-        return serviceOrder;
-    }
-
-    public List<ServiceOrder> findAll() {
-        log.info("Finding all service orders");
-
-        List<ServiceOrder> ordersServiceEntity = repository.findAll();
-
-        log.debug("Found {} service orders", ordersServiceEntity.size());
-
-        List<ServiceOrder> sortedOrders = sortOrdersServiceByStatusAndDate(ordersServiceEntity);
-
-        log.debug("Service orders sorted successfully. Total orders returned: {}", sortedOrders.size());
-
-        return sortedOrders;
-    }
-
-    private List<ServiceOrder> sortOrdersServiceByStatusAndDate(
-            List<ServiceOrder> ordersServiceEntity) {
-
-        log.debug("Sorting service orders by status priority and creation date");
-
-        return ordersServiceEntity.stream()
-                .filter(order ->
-                        order.getStatus() == ServiceOrderStatus.EM_EXECUCAO
-                                || order.getStatus() == ServiceOrderStatus.AGUARDANDO_APROVACAO
-                                || order.getStatus() == ServiceOrderStatus.APROVADA
-                                || order.getStatus() == ServiceOrderStatus.EM_DIAGNOSTICO
-                                || order.getStatus() == ServiceOrderStatus.RECEBIDA)
-                .sorted(
-                        Comparator
-                                .comparingInt((ServiceOrder order) ->
-                                        order.getStatus().getPriority())
-                                .thenComparing(ServiceOrder::getCreatedAt)
-                )
-                .toList();
-    }
-
-    public ServiceOrder findById(String id) {
-        log.info("Finding service order by id: {}", id);
-
-        ServiceOrder serviceOrder = this.findEntityById(id);
-
-        log.debug("Service order retrieved successfully by id: {}", id);
-
-        return serviceOrder;
-    }
-
-    public ServiceOrder findByServiceOrderNumber(Long serviceOrderNumber) {
-        log.info("Finding service order by number: {}", serviceOrderNumber);
-
-        ServiceOrder serviceOrder = repository.findByServiceOrderNumber(serviceOrderNumber)
-                .orElseThrow(() -> {
-                    log.warn("Service order not found by number: {}", serviceOrderNumber);
-                    return ServiceOrderNotFoundException.of(serviceOrderNumber);
-                });
-
-        log.debug("Service order found by number: {}", serviceOrderNumber);
-
-        return serviceOrder;
-    }
-
-    public ServiceOrder createServiceOrder(NewServiceOrderRequest request) {
-        log.info("Creating new service order for customer id: {}", request.getCustomerId());
-
-        List<LaborDetailDTO> laborDetails = new ArrayList<>();
-        if (request.getLaborIds() != null && !request.getLaborIds().isEmpty()) {
-            for (LaborsRequest req : request.getLaborIds()) {
-                LaborDetailDTO snapshot = laborSelectionService.getLaborSnapshot(req.getId());
-                laborDetails.add(snapshot);
-            }
+                                        @Override
+                                        public void publishGeneratePayment(String serviceOrderId,
+                                                        List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies) {
+                                        }
+                                });
         }
 
-        BigDecimal totalLaborsAmount = laborDetails.stream()
-                .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        LaborsDTO labors = new LaborsDTO(laborDetails, totalLaborsAmount);
-
-        log.debug("Labors snapshot captured successfully for customer id: {}", request.getCustomerId());
-
-        CustomerDTO customer = customerAndMecnichalService.getCustomer(
-                request.getCustomerId()
-        );
-
-        log.debug("Customer retrieved successfully. Customer id: {}", request.getCustomerId());
-
-        VehicleDTO vehicle = vehicleSelectionService.getVehicle(
-                request.getVehicleId()
-        );
-
-        log.debug("Vehicle retrieved successfully. Vehicle id: {}", request.getVehicleId());
-
-        ServiceOrder entity = mapper.toCreateEntity(
-                request,
-                vehicle,
-                customer,
-                labors
-        );
-
-        entity.setStatus(ServiceOrderStatus.RECEBIDA);
-        entity.setTotalBudgetAmount(totalLaborsAmount);
-
-        ServiceOrder saved = this.save(entity);
-
-        eventPublisherGateway.publishForDiagnostics(saved.getId());
-
-        log.info(
-                "Service order created. event=SERVICE_ORDER_CREATED, serviceOrderId={}, serviceOrderNumber={}, status={}",
-                saved.getId(),
-                saved.getServiceOrderNumber(),
-                saved.getStatus()
-        );
-
-        return saved;
-    }
-
-    public ServiceOrder updateServiceOrder(
-            String id,
-            ExistServiceOrderRequest request) {
-
-        log.info("Updating service order by id: {}", id);
-
-        ServiceOrder entity = this.findEntityById(id);
-
-        MechanicDTO mechanic = (
-                request.getMechanicId() == null
-                        || request.getMechanicId().isEmpty()
-        )
-                ? null
-                : customerAndMecnichalService.getMechanic(
-                request.getMechanicId()
-        );
-
-        log.debug("Mechanic information processed for service order id: {}", id);
-
-        ServiceOrder updated = this.save(
-                mapper.toUpdateEntity(request, entity, mechanic)
-        );
-
-        log.info("Service order updated successfully. Id: {}", id);
-
-        return updated;
-    }
-
-    public void deleteServiceOrder(String id) {
-        log.warn("Deleting service order by id: {}", id);
-
-        repository.deleteById(id);
-
-        log.info("Service order deleted successfully. Id: {}", id);
-    }
-
-    public ServiceOrder addLaborsInServiceOrder(
-            String id,
-            List<LaborsRequest> laborsIdList) {
-
-        log.info(
-                "Adding {} labor(s) to service order id: {}",
-                laborsIdList != null ? laborsIdList.size() : 0,
-                id
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-
-        List<LaborDetailDTO> current = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
-                ? new ArrayList<>(entity.getLabors().getLaborsDetails())
-                : new ArrayList<>();
-
-        if (laborsIdList != null) {
-            for (LaborsRequest req : laborsIdList) {
-                LaborDetailDTO snapshot = laborSelectionService.getLaborSnapshot(req.getId());
-                current.add(snapshot);
-            }
+        public ServiceOrderService(ServiceOrderRepository repository,
+                        CustomerAndMecnichalService customerAndMecnichalService,
+                        VehicleSelectionService vehicleSelectionService,
+                        LaborSelectionService laborSelectionService,
+                        ServiceOrderMapper mapper,
+                        ServiceOrderEventPublisherGateway eventPublisherGateway) {
+                this.repository = repository;
+                this.customerAndMecnichalService = customerAndMecnichalService;
+                this.vehicleSelectionService = vehicleSelectionService;
+                this.laborSelectionService = laborSelectionService;
+                this.mapper = mapper;
+                this.eventPublisherGateway = eventPublisherGateway;
         }
 
-        BigDecimal totalLaborsAmount = current.stream()
-                .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        private ServiceOrder findEntityById(String id) {
+                log.info("Finding service order by id: {}", id);
 
-        entity.setLabors(new LaborsDTO(current, totalLaborsAmount));
+                ServiceOrder serviceOrder = repository.findById(id)
+                                .orElseThrow(() -> {
+                                        log.warn("Service order not found by id: {}", id);
+                                        return ServiceOrderNotFoundException.of(id);
+                                });
 
-        ServiceOrder saved = this.save(entity);
+                log.debug("Service order found by id: {}", id);
 
-        log.info(
-                "Labor(s) added successfully to service order id: {}",
-                id
-        );
-
-        return saved;
-    }
-
-    public ServiceOrder removeLaborFromServiceOrder(
-            String id,
-            String laborId) {
-
-        log.info(
-                "Removing labor id: {} from service order id: {}",
-                laborId,
-                id
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-
-        if (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null) {
-            List<LaborDetailDTO> laborsDetails = new ArrayList<>(entity.getLabors().getLaborsDetails());
-            laborsDetails.removeIf(labor -> labor.getLaborId().equals(laborId));
-
-            BigDecimal totalLaborsAmount = laborsDetails.stream()
-                    .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            entity.setLabors(new LaborsDTO(laborsDetails, totalLaborsAmount));
+                return serviceOrder;
         }
 
-        ServiceOrder saved = this.save(entity);
+        public List<ServiceOrder> findAll() {
+                log.info("Finding all service orders");
 
-        log.info(
-                "Labor removed successfully. Labor id: {}, Service order id: {}",
-                laborId,
-                id
-        );
+                List<ServiceOrder> ordersServiceEntity = repository.findAll();
 
-        return saved;
-    }
+                log.debug("Found {} service orders", ordersServiceEntity.size());
 
-    public ServiceOrder addSupplyFromServiceOrder(
-            String id,
-            List<SupplysRequest> supplyIdList) {
+                List<ServiceOrder> sortedOrders = sortOrdersServiceByStatusAndDate(ordersServiceEntity);
 
-        log.info(
-                "Adding {} supply(s) to service order id: {}",
-                supplyIdList != null ? supplyIdList.size() : 0,
-                id
-        );
+                log.debug("Service orders sorted successfully. Total orders returned: {}", sortedOrders.size());
 
-        ServiceOrder entity = this.findEntityById(id);
-
-        List<SupplyDetailDTO> current = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
-                ? new ArrayList<>(entity.getSupplys().getSupplysDetails())
-                : new ArrayList<>();
-
-        if (supplyIdList != null) {
-            for (SupplysRequest req : supplyIdList) {
-                int quantity = req.getQuantity() != null ? req.getQuantity() : 1;
-                BigDecimal unitPrice = req.getUnitPrice() != null ? req.getUnitPrice() : BigDecimal.ZERO;
-                BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
-
-                current.add(SupplyDetailDTO.builder()
-                        .id(req.getId())
-                        .name(req.getName())
-                        .description(req.getDescription())
-                        .quantity(quantity)
-                        .unitPrice(unitPrice)
-                        .totalPrice(totalPrice)
-                        .build());
-            }
+                return sortedOrders;
         }
 
-        BigDecimal totalSupplyAmount = current.stream()
-                .map(s -> s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        private List<ServiceOrder> sortOrdersServiceByStatusAndDate(
+                        List<ServiceOrder> ordersServiceEntity) {
 
-        entity.setSupplys(new SupplyDTO(current, totalSupplyAmount));
+                log.debug("Sorting service orders by status priority and creation date");
 
-        ServiceOrder saved = this.save(entity);
-
-        log.info(
-                "Supply(s) added successfully to service order id: {}",
-                id
-        );
-
-        return saved;
-    }
-
-    public ServiceOrder removeSupplyFromServiceOrder(
-            String id,
-            String supplyId) {
-
-        log.info(
-                "Removing supply id: {} from service order id: {}",
-                supplyId,
-                id
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-
-        if (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null) {
-            List<SupplyDetailDTO> current = new ArrayList<>(entity.getSupplys().getSupplysDetails());
-            current.removeIf(supply -> supply.getId().equals(supplyId));
-
-            BigDecimal totalSupplyAmount = current.stream()
-                    .map(s -> s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            entity.setSupplys(new SupplyDTO(current, totalSupplyAmount));
+                return ordersServiceEntity.stream()
+                                .filter(order -> order.getStatus() == ServiceOrderStatus.EM_EXECUCAO
+                                                || order.getStatus() == ServiceOrderStatus.AGUARDANDO_APROVACAO
+                                                || order.getStatus() == ServiceOrderStatus.APROVADA
+                                                || order.getStatus() == ServiceOrderStatus.EM_DIAGNOSTICO
+                                                || order.getStatus() == ServiceOrderStatus.RECEBIDA)
+                                .sorted(
+                                                Comparator
+                                                                .comparingInt((ServiceOrder order) -> order.getStatus()
+                                                                                .getPriority())
+                                                                .thenComparing(ServiceOrder::getCreatedAt))
+                                .toList();
         }
 
-        ServiceOrder saved = this.save(entity);
+        public ServiceOrder findById(String id) {
+                log.info("Finding service order by id: {}", id);
 
-        log.info(
-                "Supply removed successfully. Supply id: {}, Service order id: {}",
-                supplyId,
-                id
-        );
+                ServiceOrder serviceOrder = this.findEntityById(id);
 
-        return saved;
-    }
+                log.debug("Service order retrieved successfully by id: {}", id);
 
-    public ServiceOrder updateStatus(
-            String id,
-            ServiceOrderStatus status) {
-
-        log.info(
-                "Updating service order status. Id: {}, New status: {}",
-                id,
-                status
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-
-        ServiceOrderStatus previousStatus = entity.getStatus();
-
-        entity.setStatus(status);
-
-        logStatusChange(
-                entity,
-                previousStatus,
-                status
-        );
-
-        ServiceOrder saved = this.save(entity);
-
-        log.info(
-                "Service order status updated successfully. Id: {}, Status: {}",
-                id,
-                status
-        );
-
-        return saved;
-    }
-
-    public ServiceOrder startDiagnosis(
-            String id,
-            String mechanicId) {
-
-        log.info(
-                "Starting diagnosis. Service order id: {}, Mechanic id: {}",
-                id,
-                mechanicId
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-        ServiceOrderStatus previousStatus = entity.getStatus();
-
-        entity.setStatus(ServiceOrderStatus.EM_DIAGNOSTICO);
-
-        if (mechanicId != null && !mechanicId.isBlank()) {
-            MechanicDTO mechanic = customerAndMecnichalService.getMechanic(mechanicId);
-            entity.setMechanic(mechanic);
+                return serviceOrder;
         }
 
-        logStatusChange(
-                entity,
-                previousStatus,
-                ServiceOrderStatus.EM_DIAGNOSTICO
-        );
+        public ServiceOrder findByServiceOrderNumber(Long serviceOrderNumber) {
+                log.info("Finding service order by number: {}", serviceOrderNumber);
 
-        ServiceOrder saved = this.save(entity);
+                ServiceOrder serviceOrder = repository.findByServiceOrderNumber(serviceOrderNumber)
+                                .orElseThrow(() -> {
+                                        log.warn("Service order not found by number: {}", serviceOrderNumber);
+                                        return ServiceOrderNotFoundException.of(serviceOrderNumber);
+                                });
 
-        log.info(
-                "Service order status updated to EM_DIAGNOSTICO. Id: {}",
-                id
-        );
+                log.debug("Service order found by number: {}", serviceOrderNumber);
 
-        return saved;
-    }
+                return serviceOrder;
+        }
 
-    public void handleDiagnosisCompleted(String serviceOrderId) {
-        log.info("Processando evento eventDiagnosisCompleted para ordem de serviço: {}", serviceOrderId);
-        ServiceOrder entity = this.findEntityById(serviceOrderId);
+        public ServiceOrder createServiceOrder(NewServiceOrderRequest request) {
+                log.info("Creating new service order for customer id: {}", request.getCustomerId());
 
-        List<LaborDetailDTO> labors = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
-                ? entity.getLabors().getLaborsDetails().stream()
-                    .filter(l -> l.getSituation() == null || l.getSituation() != LaborSituation.REJEITADO)
-                    .toList()
-                : List.of();
+                List<LaborDetailDTO> laborDetails = new ArrayList<>();
+                if (request.getLaborIds() != null && !request.getLaborIds().isEmpty()) {
+                        for (LaborsRequest req : request.getLaborIds()) {
+                                LaborDetailDTO snapshot = laborSelectionService.getLaborSnapshot(req.getId());
+                                laborDetails.add(snapshot);
+                        }
+                }
 
-        List<SupplyDetailDTO> supplies = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
-                ? entity.getSupplys().getSupplysDetails()
-                : List.of();
+                BigDecimal totalLaborsAmount = laborDetails.stream()
+                                .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        eventPublisherGateway.publishGeneratePayment(serviceOrderId, labors, supplies);
+                LaborsDTO labors = new LaborsDTO(laborDetails, totalLaborsAmount);
 
-        log.info("eventGeneratePayment publicado com sucesso para ordem de serviço: {}", serviceOrderId);
-    }
+                log.debug("Labors snapshot captured successfully for customer id: {}", request.getCustomerId());
 
-    public void generatePaymentForServiceOrder(String serviceOrderId) {
-        log.info("Publicando eventGeneratePayment para ordem de serviço: {}", serviceOrderId);
-        ServiceOrder entity = this.findEntityById(serviceOrderId);
+                CustomerDTO customer = customerAndMecnichalService.getCustomer(
+                                request.getCustomerId());
 
-        List<LaborDetailDTO> approvedLabors = (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null)
-                ? entity.getLabors().getLaborsDetails().stream()
-                    .filter(l -> LaborSituation.APROVADO.equals(l.getSituation()))
-                    .toList()
-                : List.of();
+                log.debug("Customer retrieved successfully. Customer id: {}", request.getCustomerId());
 
-        List<SupplyDetailDTO> supplies = (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null)
-                ? entity.getSupplys().getSupplysDetails()
-                : List.of();
+                VehicleDTO vehicle = vehicleSelectionService.getVehicle(
+                                request.getVehicleId());
 
-        eventPublisherGateway.publishGeneratePayment(serviceOrderId, approvedLabors, supplies);
+                log.debug("Vehicle retrieved successfully. Vehicle id: {}", request.getVehicleId());
 
-        log.info("eventGeneratePayment pós-aprovação publicado com sucesso para ordem de serviço: {}", serviceOrderId);
-    }
+                ServiceOrder entity = mapper.toCreateEntity(
+                                request,
+                                vehicle,
+                                customer,
+                                labors);
 
+                entity.setStatus(ServiceOrderStatus.RECEBIDA);
+                entity.setTotalBudgetAmount(totalLaborsAmount);
+
+                ServiceOrder saved = this.save(entity);
+
+                eventPublisherGateway.publishForDiagnostics(saved.getId());
+
+                log.info(
+                                "Service order created. event=SERVICE_ORDER_CREATED, serviceOrderId={}, serviceOrderNumber={}, status={}",
+                                saved.getId(),
+                                saved.getServiceOrderNumber(),
+                                saved.getStatus());
+
+                return saved;
+        }
+
+        public ServiceOrder updateServiceOrder(
+                        String id,
+                        ExistServiceOrderRequest request) {
+
+                log.info("Updating service order by id: {}", id);
+
+                ServiceOrder entity = this.findEntityById(id);
+
+                MechanicDTO mechanic = (request.getMechanicId() == null
+                                || request.getMechanicId().isEmpty())
+                                                ? null
+                                                : customerAndMecnichalService.getMechanic(
+                                                                request.getMechanicId());
+
+                log.debug("Mechanic information processed for service order id: {}", id);
+
+                ServiceOrder updated = this.save(
+                                mapper.toUpdateEntity(request, entity, mechanic));
+
+                log.info("Service order updated successfully. Id: {}", id);
+
+                return updated;
+        }
+
+        public void deleteServiceOrder(String id) {
+                log.warn("Deleting service order by id: {}", id);
+
+                repository.deleteById(id);
+
+                log.info("Service order deleted successfully. Id: {}", id);
+        }
+
+        public ServiceOrder addLaborsInServiceOrder(
+                        String id,
+                        List<LaborsRequest> laborsIdList) {
+
+                log.info(
+                                "Adding {} labor(s) to service order id: {}",
+                                laborsIdList != null ? laborsIdList.size() : 0,
+                                id);
+
+                ServiceOrder entity = this.findEntityById(id);
+
+                List<LaborDetailDTO> current = (entity.getLabors() != null
+                                && entity.getLabors().getLaborsDetails() != null)
+                                                ? new ArrayList<>(entity.getLabors().getLaborsDetails())
+                                                : new ArrayList<>();
+
+                if (laborsIdList != null) {
+                        for (LaborsRequest req : laborsIdList) {
+                                LaborDetailDTO snapshot = laborSelectionService.getLaborSnapshot(req.getId());
+                                current.add(snapshot);
+                        }
+                }
+
+                BigDecimal totalLaborsAmount = current.stream()
+                                .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                entity.setLabors(new LaborsDTO(current, totalLaborsAmount));
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Labor(s) added successfully to service order id: {}",
+                                id);
+
+                return saved;
+        }
+
+        public ServiceOrder removeLaborFromServiceOrder(
+                        String id,
+                        String laborId) {
+
+                log.info(
+                                "Removing labor id: {} from service order id: {}",
+                                laborId,
+                                id);
+
+                ServiceOrder entity = this.findEntityById(id);
+
+                if (entity.getLabors() != null && entity.getLabors().getLaborsDetails() != null) {
+                        List<LaborDetailDTO> laborsDetails = new ArrayList<>(entity.getLabors().getLaborsDetails());
+                        laborsDetails.removeIf(labor -> labor.getLaborId().equals(laborId));
+
+                        BigDecimal totalLaborsAmount = laborsDetails.stream()
+                                        .map(l -> l.getLaborPrice() != null ? l.getLaborPrice() : BigDecimal.ZERO)
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                        entity.setLabors(new LaborsDTO(laborsDetails, totalLaborsAmount));
+                }
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Labor removed successfully. Labor id: {}, Service order id: {}",
+                                laborId,
+                                id);
+
+                return saved;
+        }
+
+        public ServiceOrder addSupplyFromServiceOrder(
+                        String id,
+                        List<SupplysRequest> supplyIdList) {
+
+                log.info(
+                                "Adding {} supply(s) to service order id: {}",
+                                supplyIdList != null ? supplyIdList.size() : 0,
+                                id);
+
+                ServiceOrder entity = this.findEntityById(id);
+
+                List<SupplyDetailDTO> current = (entity.getSupplys() != null
+                                && entity.getSupplys().getSupplysDetails() != null)
+                                                ? new ArrayList<>(entity.getSupplys().getSupplysDetails())
+                                                : new ArrayList<>();
+
+                if (supplyIdList != null) {
+                        for (SupplysRequest req : supplyIdList) {
+                                int quantity = req.getQuantity() != null ? req.getQuantity() : 1;
+                                BigDecimal unitPrice = req.getUnitPrice() != null ? req.getUnitPrice()
+                                                : BigDecimal.ZERO;
+                                BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
+
+                                current.add(SupplyDetailDTO.builder()
+                                                .id(req.getId())
+                                                .name(req.getName())
+                                                .description(req.getDescription())
+                                                .quantity(quantity)
+                                                .unitPrice(unitPrice)
+                                                .totalPrice(totalPrice)
+                                                .build());
+                        }
+                }
+
+                BigDecimal totalSupplyAmount = current.stream()
+                                .map(s -> s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                entity.setSupplys(new SupplyDTO(current, totalSupplyAmount));
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Supply(s) added successfully to service order id: {}",
+                                id);
+
+                return saved;
+        }
+
+        public ServiceOrder removeSupplyFromServiceOrder(
+                        String id,
+                        String supplyId) {
+
+                log.info(
+                                "Removing supply id: {} from service order id: {}",
+                                supplyId,
+                                id);
+
+                ServiceOrder entity = this.findEntityById(id);
+
+                if (entity.getSupplys() != null && entity.getSupplys().getSupplysDetails() != null) {
+                        List<SupplyDetailDTO> current = new ArrayList<>(entity.getSupplys().getSupplysDetails());
+                        current.removeIf(supply -> supply.getId().equals(supplyId));
+
+                        BigDecimal totalSupplyAmount = current.stream()
+                                        .map(s -> s.getTotalPrice() != null ? s.getTotalPrice() : BigDecimal.ZERO)
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                        entity.setSupplys(new SupplyDTO(current, totalSupplyAmount));
+                }
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Supply removed successfully. Supply id: {}, Service order id: {}",
+                                supplyId,
+                                id);
+
+                return saved;
+        }
+
+        public ServiceOrder updateStatus(
+                        String id,
+                        ServiceOrderStatus status) {
+
+                log.info(
+                                "Updating service order status. Id: {}, New status: {}",
+                                id,
+                                status);
+
+                ServiceOrder entity = this.findEntityById(id);
+
+                ServiceOrderStatus previousStatus = entity.getStatus();
+
+                entity.setStatus(status);
+
+                if (ServiceOrderStatus.APROVADA.equals(status)) {
+                        entity.setStatusPayment("APROVED");
+                } else if (ServiceOrderStatus.RECUSADA.equals(status) && entity.getStatusPayment() == null) {
+                        entity.setStatusPayment("RECUSED");
+                }
+
+                logStatusChange(
+                                entity,
+                                previousStatus,
+                                status);
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Service order status updated successfully. Id: {}, Status: {}",
+                                id,
+                                status);
+
+                return saved;
+        }
+
+        public ServiceOrder startDiagnosis(
+                        String id,
+                        String mechanicId) {
+                return startDiagnosis(id, mechanicId, null);
+        }
+
+        public ServiceOrder startDiagnosis(
+                        String id,
+                        String mechanicId,
+                        String mechanicName) {
+
+                log.info(
+                                "Starting diagnosis. Service order id: {}, Mechanic id: {}",
+                                id,
+                                mechanicId);
+
+                ServiceOrder entity = this.findEntityById(id);
+                ServiceOrderStatus previousStatus = entity.getStatus();
+
+                entity.setStatus(ServiceOrderStatus.EM_DIAGNOSTICO);
+
+                if (mechanicId != null && !mechanicId.isBlank()) {
+                        if (mechanicName != null && !mechanicName.isBlank()) {
+                                entity.setMechanic(new MechanicDTO(mechanicId, mechanicName));
+                        } else {
+                                MechanicDTO mechanic = customerAndMecnichalService.getMechanic(mechanicId);
+                                entity.setMechanic(mechanic);
+                        }
+                }
+
+                logStatusChange(
+                                entity,
+                                previousStatus,
+                                ServiceOrderStatus.EM_DIAGNOSTICO);
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Service order status updated to EM_DIAGNOSTICO. Id: {}",
+                                id);
+
+                return saved;
+        }
+
+        public void handleDiagnosisCompleted(String serviceOrderId) {
+                log.info("Processando evento eventDiagnosisCompleted para ordem de serviço: {}", serviceOrderId);
+                ServiceOrder entity = this.findEntityById(serviceOrderId);
+
+                List<LaborDetailDTO> labors = (entity.getLabors() != null
+                                && entity.getLabors().getLaborsDetails() != null)
+                                                ? entity.getLabors().getLaborsDetails().stream()
+                                                                .filter(l -> l.getSituation() == null || l
+                                                                                .getSituation() != LaborSituation.REJEITADO)
+                                                                .toList()
+                                                : List.of();
+
+                List<SupplyDetailDTO> supplies = (entity.getSupplys() != null
+                                && entity.getSupplys().getSupplysDetails() != null)
+                                                ? entity.getSupplys().getSupplysDetails()
+                                                : List.of();
+
+                eventPublisherGateway.publishGeneratePayment(serviceOrderId, labors, supplies);
+
+                log.info("eventGeneratePayment publicado com sucesso para ordem de serviço: {}", serviceOrderId);
+        }
+
+        public void generatePaymentForServiceOrder(String serviceOrderId) {
+                log.info("Publicando eventGeneratePayment para ordem de serviço: {}", serviceOrderId);
+                ServiceOrder entity = this.findEntityById(serviceOrderId);
+
+                List<LaborDetailDTO> approvedLabors = (entity.getLabors() != null
+                                && entity.getLabors().getLaborsDetails() != null)
+                                                ? entity.getLabors().getLaborsDetails().stream()
+                                                                .filter(l -> LaborSituation.APROVADO
+                                                                                .equals(l.getSituation()))
+                                                                .toList()
+                                                : List.of();
+
+                List<SupplyDetailDTO> supplies = (entity.getSupplys() != null
+                                && entity.getSupplys().getSupplysDetails() != null)
+                                                ? entity.getSupplys().getSupplysDetails()
+                                                : List.of();
+
+                eventPublisherGateway.publishGeneratePayment(serviceOrderId, approvedLabors, supplies);
+
+                log.info("eventGeneratePayment pós-aprovação publicado com sucesso para ordem de serviço: {}",
+                                serviceOrderId);
+        }
+
+        public void publishServiceOrderRecused(ServiceOrder entity) {
+                List<SupplyDetailDTO> supplies = (entity.getSupplys() != null
+                                && entity.getSupplys().getSupplysDetails() != null)
+                                                ? entity.getSupplys().getSupplysDetails()
+                                                : List.of();
+
+                log.info("Publicando compensação eventServiceOrderRecused para ordem de serviço: {} com {} peça(s)",
+                                entity.getId(), supplies.size());
+                eventPublisherGateway.publishServiceOrderRecused(entity.getId(), supplies);
+        }
+
+        public ServiceOrder cancelServiceOrder(String id) {
+                log.info("Solicitação de cancelamento da ordem de serviço: {}", id);
+                ServiceOrder entity = this.findEntityById(id);
+
+                if (ServiceOrderStatus.EM_EXECUCAO.equals(entity.getStatus())) {
+                        log.warn("Tentativa de cancelar O.S {} que já está em execução", id);
+                        throw new ServiceOrderBusinessException("Não é possível cancelar porque já está em execução.");
+                }
+
+                if (ServiceOrderStatus.FINALIZADA.equals(entity.getStatus())
+                                || ServiceOrderStatus.ENTREGUE.equals(entity.getStatus())) {
+                        log.warn("Tentativa de cancelar O.S {} com status {}", id, entity.getStatus());
+                        throw new ServiceOrderBusinessException(
+                                        "Não é possível cancelar uma O.S. já finalizada ou entregue.");
+                }
+
+                ServiceOrderStatus previousStatus = entity.getStatus();
+                if (!ServiceOrderStatus.RECUSADA.equals(previousStatus)) {
+                        entity.setStatus(ServiceOrderStatus.RECUSADA);
+                        logStatusChange(entity, previousStatus, ServiceOrderStatus.RECUSADA);
+                }
+
+                ServiceOrder saved = this.save(entity);
+                publishServiceOrderRecused(saved);
+
+                log.info("Ordem de serviço {} cancelada e compensação eventServiceOrderRecused publicada", id);
+                return saved;
+        }
+
+        public ServiceOrder handlePaymentRejection(String id, String statusPayment, String description) {
+                log.info("Processando rejeição/estorno de pagamento para O.S {}: statusPayment={}, description={}",
+                                id, statusPayment, description);
+                ServiceOrder entity = this.findEntityById(id);
+                ServiceOrderStatus previousStatus = entity.getStatus();
+
+                entity.setStatusPayment(statusPayment != null ? statusPayment : "RECUSED");
+                if (description != null) {
+                        entity.setPaymentDescription(description);
+                }
+
+                if (!ServiceOrderStatus.RECUSADA.equals(previousStatus)) {
+                        entity.setStatus(ServiceOrderStatus.RECUSADA);
+                        logStatusChange(entity, previousStatus, ServiceOrderStatus.RECUSADA);
+                }
+
+                ServiceOrder saved = this.save(entity);
+                log.info("Notificando cliente: Ordem de serviço {} atualizada para RECUSADA (statusPayment={})",
+                                id, entity.getStatusPayment());
+                return saved;
+        }
+
+        public ServiceOrder applyBudget(
+                        String id,
+                        BigDecimal totalLaborAmount,
+                        BigDecimal totalSupplyAmount,
+                        BigDecimal totalBudgetAmount) {
+                return applyBudget(id, totalLaborAmount, totalSupplyAmount, totalBudgetAmount, null);
+        }
 
     public ServiceOrder applyBudget(
             String id,
             BigDecimal totalLaborAmount,
             BigDecimal totalSupplyAmount,
-            BigDecimal totalBudgetAmount) {
+            BigDecimal totalBudgetAmount,
+            String paymentLink) {
 
         log.info(
-                "Applying budget to service order id: {}, totalBudgetAmount: {}",
+                "Applying budget to service order id: {}, totalBudgetAmount: {}, paymentLink: {}",
                 id,
-                totalBudgetAmount
+                totalBudgetAmount,
+                paymentLink
         );
 
         ServiceOrder entity = this.findEntityById(id);
@@ -511,360 +590,333 @@ public class ServiceOrderService {
             entity.getSupplys().setTotalSupplyAmount(totalSupplyAmount);
         }
 
-        entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
-
-        logStatusChange(
-                entity,
-                previousStatus,
-                ServiceOrderStatus.AGUARDANDO_APROVACAO
-        );
-
-        ServiceOrder saved = this.save(entity);
-
-        log.info(
-                "Budget applied to service order id: {}. New status: AGUARDANDO_APROVACAO",
-                id
-        );
-
-        return saved;
-    }
-
-    public ServiceOrder startLabor(
-            String id,
-            String laborId) {
-
-        log.info(
-                "Starting labor execution. Labor id: {}, Service order id: {}",
-                laborId,
-                id
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-
-        this.validateStatusForStartExecution(entity);
-
-        boolean found = false;
-
-        for (LaborDetailDTO labor : entity.getLabors().getLaborsDetails()) {
-
-            if (labor.getLaborId().equals(laborId)) {
-
-                if (labor.getStartDate() == null) {
-
-                    labor.setStartDate(LocalDateTime.now());
-
-                    found = true;
-
-                    log.debug(
-                            "Labor execution started. Labor id: {}, Service order id: {}",
-                            laborId,
-                            id
-                    );
-
-                    break;
-
-                } else {
-
-                    log.error(
-                            "Attempt to start an already started labor. Service order id: {}, Labor id: {}",
-                            id,
-                            laborId
-                    );
-
-                    throw new ServiceOrderBusinessException(
-                            "O serviço já foi iniciado"
-                    );
-                }
-            }
+        if (paymentLink != null && !paymentLink.isBlank()) {
+            entity.setPaymentLink(paymentLink);
         }
 
-        if (!found) {
-
-            log.error(
-                    "Labor not found in service order. Labor id: {}, Service order id: {}",
-                    laborId,
-                    id
-            );
-
-            throw new ServiceOrderNotFoundException(
-                    "A O.S não possui este serviço"
-            );
-        }
-
-        if (entity.getStatus().equals(ServiceOrderStatus.APROVADA)) {
-
-            ServiceOrderStatus previousStatus = entity.getStatus();
-
-            entity.setStatus(ServiceOrderStatus.EM_EXECUCAO);
+        if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
+            entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
 
             logStatusChange(
                     entity,
                     previousStatus,
-                    ServiceOrderStatus.EM_EXECUCAO
+                    ServiceOrderStatus.AGUARDANDO_APROVACAO
             );
         }
 
         ServiceOrder saved = this.save(entity);
 
         log.info(
-                "Labor execution started successfully. Labor id: {}, Service order id: {}",
-                laborId,
-                id
+                "Budget applied to service order id: {}. Status: {}",
+                id,
+                saved.getStatus()
         );
 
         return saved;
     }
 
-    public ServiceOrder finishLabor(
-            String id,
-            String laborId) {
+        public ServiceOrder startLabor(
+                        String id,
+                        String laborId) {
 
-        log.info(
-                "Finishing labor execution. Labor id: {}, Service order id: {}",
-                laborId,
-                id
-        );
+                log.info(
+                                "Starting labor execution. Labor id: {}, Service order id: {}",
+                                laborId,
+                                id);
 
-        ServiceOrder entity = this.findEntityById(id);
+                ServiceOrder entity = this.findEntityById(id);
 
-        this.validateStatusForStartExecution(entity);
+                this.validateStatusForStartExecution(entity);
 
-        boolean found = false;
+                boolean found = false;
 
-        for (LaborDetailDTO labor : entity.getLabors().getLaborsDetails()) {
+                for (LaborDetailDTO labor : entity.getLabors().getLaborsDetails()) {
 
-            if (labor.getLaborId().equals(laborId)) {
+                        if (labor.getLaborId().equals(laborId)) {
 
-                if (labor.getEndDate() == null
-                        && labor.getStartDate() != null) {
+                                if (labor.getStartDate() == null) {
 
-                    found = true;
+                                        labor.setStartDate(LocalDateTime.now());
 
-                    labor.setEndDate(LocalDateTime.now());
+                                        found = true;
 
-                    log.debug(
-                            "Updating labor execution time. Labor id: {}, Service order id: {}",
-                            laborId,
-                            id
-                    );
+                                        log.debug(
+                                                        "Labor execution started. Labor id: {}, Service order id: {}",
+                                                        laborId,
+                                                        id);
 
-                    break;
+                                        break;
 
-                } else {
+                                } else {
 
-                    log.error(
-                            "Failed to finish labor. Labor was not started or was already finished. Service order id: {}, Labor id: {}",
-                            id,
-                            laborId
-                    );
+                                        log.error(
+                                                        "Attempt to start an already started labor. Service order id: {}, Labor id: {}",
+                                                        id,
+                                                        laborId);
 
-                    throw new ServiceOrderBusinessException(
-                            "Não é possível finalizar um serviço que não foi iniciado ou já foi finalizado."
-                    );
+                                        throw new ServiceOrderBusinessException(
+                                                        "O serviço já foi iniciado");
+                                }
+                        }
                 }
-            }
+
+                if (!found) {
+
+                        log.error(
+                                        "Labor not found in service order. Labor id: {}, Service order id: {}",
+                                        laborId,
+                                        id);
+
+                        throw new ServiceOrderNotFoundException(
+                                        "A O.S não possui este serviço");
+                }
+
+                if (entity.getStatus().equals(ServiceOrderStatus.APROVADA)) {
+
+                        ServiceOrderStatus previousStatus = entity.getStatus();
+
+                        entity.setStatus(ServiceOrderStatus.EM_EXECUCAO);
+
+                        logStatusChange(
+                                        entity,
+                                        previousStatus,
+                                        ServiceOrderStatus.EM_EXECUCAO);
+                }
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Labor execution started successfully. Labor id: {}, Service order id: {}",
+                                laborId,
+                                id);
+
+                return saved;
         }
 
-        if (!found) {
+        public ServiceOrder finishLabor(
+                        String id,
+                        String laborId) {
 
-            log.error(
-                    "Labor not found in service order. Labor id: {}, Service order id: {}",
-                    laborId,
-                    id
-            );
+                log.info(
+                                "Finishing labor execution. Labor id: {}, Service order id: {}",
+                                laborId,
+                                id);
 
-            throw new ServiceOrderNotFoundException(
-                    "A O.S não possui este serviço"
-            );
+                ServiceOrder entity = this.findEntityById(id);
+
+                this.validateStatusForStartExecution(entity);
+
+                boolean found = false;
+
+                for (LaborDetailDTO labor : entity.getLabors().getLaborsDetails()) {
+
+                        if (labor.getLaborId().equals(laborId)) {
+
+                                if (labor.getEndDate() == null
+                                                && labor.getStartDate() != null) {
+
+                                        found = true;
+
+                                        labor.setEndDate(LocalDateTime.now());
+
+                                        log.debug(
+                                                        "Updating labor execution time. Labor id: {}, Service order id: {}",
+                                                        laborId,
+                                                        id);
+
+                                        break;
+
+                                } else {
+
+                                        log.error(
+                                                        "Failed to finish labor. Labor was not started or was already finished. Service order id: {}, Labor id: {}",
+                                                        id,
+                                                        laborId);
+
+                                        throw new ServiceOrderBusinessException(
+                                                        "Não é possível finalizar um serviço que não foi iniciado ou já foi finalizado.");
+                                }
+                        }
+                }
+
+                if (!found) {
+
+                        log.error(
+                                        "Labor not found in service order. Labor id: {}, Service order id: {}",
+                                        laborId,
+                                        id);
+
+                        throw new ServiceOrderNotFoundException(
+                                        "A O.S não possui este serviço");
+                }
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Labor execution finished successfully. Labor id: {}, Service order id: {}",
+                                laborId,
+                                id);
+
+                return saved;
         }
 
-        ServiceOrder saved = this.save(entity);
+        public ServiceOrder save(ServiceOrder entity) {
 
-        log.info(
-                "Labor execution finished successfully. Labor id: {}, Service order id: {}",
-                laborId,
-                id
-        );
+                log.debug(
+                                "Saving service order. Id: {}",
+                                entity.getId());
 
-        return saved;
-    }
+                ServiceOrder saved = repository.save(entity);
 
-    public ServiceOrder save(ServiceOrder entity) {
+                log.debug(
+                                "Service order saved successfully. Id: {}",
+                                saved.getId());
 
-        log.debug(
-                "Saving service order. Id: {}",
-                entity.getId()
-        );
-
-        ServiceOrder saved = repository.save(entity);
-
-        log.debug(
-                "Service order saved successfully. Id: {}",
-                saved.getId()
-        );
-
-        return saved;
-    }
-
-    public void sendToCustomer(String id) {
-
-        log.info(
-                "Sending service order to customer for approval. Id: {}",
-                id
-        );
-
-        ServiceOrder serviceOrder = this.findEntityById(id);
-
-        ServiceOrderStatus previousStatus = serviceOrder.getStatus();
-
-        serviceOrder.setStatus(
-                ServiceOrderStatus.AGUARDANDO_APROVACAO
-        );
-
-        logStatusChange(
-                serviceOrder,
-                previousStatus,
-                ServiceOrderStatus.AGUARDANDO_APROVACAO
-        );
-
-        repository.save(serviceOrder);
-
-        log.info(
-                "Service order sent to customer successfully. Id: {}",
-                id
-        );
-    }
-
-    private void validateStatusForStartExecution(ServiceOrder entity) {
-
-        log.debug(
-                "Validating service order status for labor execution. Id: {}, Status: {}",
-                entity.getId(),
-                entity.getStatus()
-        );
-
-        if (!(ServiceOrderStatus.APROVADA.equals(entity.getStatus())
-                || ServiceOrderStatus.EM_EXECUCAO.equals(entity.getStatus()))) {
-
-            log.warn(
-                    "Invalid service order status for labor execution. Id: {}, Current status: {}",
-                    entity.getId(),
-                    entity.getStatus()
-                );
-
-            throw new ServiceOrderBusinessException(
-                    "Um serviço só pode ser iniciado ou finalizado se o status da ordem de serviço for APROVADA ou EM EXECUÇÃO."
-            );
+                return saved;
         }
 
-        LaborsDTO labors = entity.getLabors();
+        public void sendToCustomer(String id) {
 
-        if (labors == null
-                || labors.getLaborsDetails() == null
-                || labors.getLaborsDetails().isEmpty()) {
+                log.info(
+                                "Sending service order to customer for approval. Id: {}",
+                                id);
 
-            log.warn(
-                    "Service order has no labors registered. Id: {}",
-                    entity.getId()
-            );
+                ServiceOrder serviceOrder = this.findEntityById(id);
 
-            throw new ServiceOrderBusinessException(
-                    "A ordem de serviço não possui serviços cadastrados."
-            );
+                ServiceOrderStatus previousStatus = serviceOrder.getStatus();
+
+                serviceOrder.setStatus(
+                                ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+                logStatusChange(
+                                serviceOrder,
+                                previousStatus,
+                                ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+                repository.save(serviceOrder);
+
+                log.info(
+                                "Service order sent to customer successfully. Id: {}",
+                                id);
         }
 
-        log.debug(
-                "Service order validation completed successfully. Id: {}",
-                entity.getId()
-        );
-    }
+        private void validateStatusForStartExecution(ServiceOrder entity) {
 
-    public void logStatusChange(
-            ServiceOrder entity,
-            ServiceOrderStatus previousStatus,
-            ServiceOrderStatus newStatus) {
+                log.debug(
+                                "Validating service order status for labor execution. Id: {}, Status: {}",
+                                entity.getId(),
+                                entity.getStatus());
 
-        log.info(
-                "Service order status changed. event=SERVICE_ORDER_STATUS_CHANGED, " +
-                        "serviceOrderId={}, previousStatus={}, status={}",
-                entity.getId(),
-                previousStatus,
-                newStatus
-        );
+                if (!(ServiceOrderStatus.APROVADA.equals(entity.getStatus())
+                                || ServiceOrderStatus.EM_EXECUCAO.equals(entity.getStatus()))) {
 
-        LocalDateTime statusStartDate = getStatusStartDate(
-                entity,
-                previousStatus
-        );
+                        log.warn(
+                                        "Invalid service order status for labor execution. Id: {}, Current status: {}",
+                                        entity.getId(),
+                                        entity.getStatus());
 
-        LocalDateTime statusEndDate = getStatusStartDate(
-                entity,
-                newStatus
-        );
+                        throw new ServiceOrderBusinessException(
+                                        "Um serviço só pode ser iniciado ou finalizado se o status da ordem de serviço for APROVADA ou EM EXECUÇÃO.");
+                }
 
-        if (statusStartDate != null && statusEndDate != null) {
+                LaborsDTO labors = entity.getLabors();
 
-            long durationInSeconds =
-                    java.time.Duration.between(
-                            statusStartDate,
-                            statusEndDate
-                    ).getSeconds();
+                if (labors == null
+                                || labors.getLaborsDetails() == null
+                                || labors.getLaborsDetails().isEmpty()) {
 
-            double durationInMinutes =
-                    durationInSeconds / 60.0;
+                        log.warn(
+                                        "Service order has no labors registered. Id: {}",
+                                        entity.getId());
 
-            log.info(
-                    "Service order status duration. " +
-                            "event=SERVICE_ORDER_STATUS_DURATION, " +
-                            "serviceOrderId={}, " +
-                            "status={}, " +
-                            "startDate={}, " +
-                            "endDate={}, " +
-                            "durationInSeconds={}, " +
-                            "durationInMinutes={}",
-                    entity.getId(),
-                    previousStatus,
-                    statusStartDate,
-                    statusEndDate,
-                    durationInSeconds,
-                    durationInMinutes
-            );
-        }
-    }
+                        throw new ServiceOrderBusinessException(
+                                        "A ordem de serviço não possui serviços cadastrados.");
+                }
 
-    private LocalDateTime getStatusStartDate(
-            ServiceOrder entity,
-            ServiceOrderStatus status) {
-
-        if (status == null) {
-            return null;
+                log.debug(
+                                "Service order validation completed successfully. Id: {}",
+                                entity.getId());
         }
 
-        return switch (status) {
+        public void logStatusChange(
+                        ServiceOrder entity,
+                        ServiceOrderStatus previousStatus,
+                        ServiceOrderStatus newStatus) {
 
-            case RECEBIDA ->
-                    entity.getRegistrationDate();
+                log.info(
+                                "Service order status changed. event=SERVICE_ORDER_STATUS_CHANGED, " +
+                                                "serviceOrderId={}, previousStatus={}, status={}",
+                                entity.getId(),
+                                previousStatus,
+                                newStatus);
 
-            case EM_DIAGNOSTICO ->
-                    entity.getDiagnosisStartDate();
+                LocalDateTime statusStartDate = getStatusStartDate(
+                                entity,
+                                previousStatus);
 
-            case AGUARDANDO_APROVACAO ->
-                    entity.getClientSendDate();
+                LocalDateTime statusEndDate = getStatusStartDate(
+                                entity,
+                                newStatus);
 
-            case APROVADA ->
-                    entity.getApprovalDate();
+                if (statusStartDate != null && statusEndDate != null) {
 
-            case EM_EXECUCAO ->
-                    entity.getExecutionStartDate();
+                        long durationInSeconds = java.time.Duration.between(
+                                        statusStartDate,
+                                        statusEndDate).getSeconds();
 
-            case FINALIZADA ->
-                    entity.getFinalizationDate();
+                        double durationInMinutes = durationInSeconds / 60.0;
 
-            case ENTREGUE ->
-                    entity.getDeliveryDate();
+                        log.info(
+                                        "Service order status duration. " +
+                                                        "event=SERVICE_ORDER_STATUS_DURATION, " +
+                                                        "serviceOrderId={}, " +
+                                                        "status={}, " +
+                                                        "startDate={}, " +
+                                                        "endDate={}, " +
+                                                        "durationInSeconds={}, " +
+                                                        "durationInMinutes={}",
+                                        entity.getId(),
+                                        previousStatus,
+                                        statusStartDate,
+                                        statusEndDate,
+                                        durationInSeconds,
+                                        durationInMinutes);
+                }
+        }
 
-            case RECUSADA ->
-                    entity.getRefuseDate();
-        };
-    }
+        private LocalDateTime getStatusStartDate(
+                        ServiceOrder entity,
+                        ServiceOrderStatus status) {
+
+                if (status == null) {
+                        return null;
+                }
+
+                return switch (status) {
+
+                        case RECEBIDA ->
+                                entity.getRegistrationDate();
+
+                        case EM_DIAGNOSTICO ->
+                                entity.getDiagnosisStartDate();
+
+                        case AGUARDANDO_APROVACAO ->
+                                entity.getClientSendDate();
+
+                        case APROVADA ->
+                                entity.getApprovalDate();
+
+                        case EM_EXECUCAO ->
+                                entity.getExecutionStartDate();
+
+                        case FINALIZADA ->
+                                entity.getFinalizationDate();
+
+                        case ENTREGUE ->
+                                entity.getDeliveryDate();
+
+                        case RECUSADA ->
+                                entity.getRefuseDate();
+                };
+        }
 }

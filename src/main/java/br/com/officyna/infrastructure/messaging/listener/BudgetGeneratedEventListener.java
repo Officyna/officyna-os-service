@@ -4,6 +4,7 @@ import br.com.officyna.domain.serviceorder.service.ServiceOrderService;
 import br.com.officyna.infrastructure.messaging.dto.BudgetGeneratedEventMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,9 +22,21 @@ public class BudgetGeneratedEventListener extends AbstractSqsQueueListener<Budge
             SqsClient sqsClient,
             ObjectMapper objectMapper,
             ServiceOrderService serviceOrderService,
-            @Value("${aws.sqs.queues.event-buget-generated:eventBugetGenerated}") String queueName,
-            @Value("${aws.sqs.listener.wait-time-seconds:5}") int waitTimeSeconds) {
+            String queueName,
+            int waitTimeSeconds) {
         super(sqsClient, objectMapper, queueName, waitTimeSeconds, BudgetGeneratedEventMessage.class);
+        this.serviceOrderService = serviceOrderService;
+    }
+
+    @Autowired
+    public BudgetGeneratedEventListener(
+            SqsClient sqsClient,
+            ObjectMapper objectMapper,
+            ServiceOrderService serviceOrderService,
+            @Value("${aws.sqs.queues.event-buget-generated:eventBugetGenerated}") String queueName,
+            @Value("${aws.sqs.queues.event-buget-generated-dlq:eventBugetGeneratedDlq}") String dlqQueueName,
+            @Value("${aws.sqs.listener.wait-time-seconds:5}") int waitTimeSeconds) {
+        super(sqsClient, objectMapper, queueName, dlqQueueName, waitTimeSeconds, BudgetGeneratedEventMessage.class);
         this.serviceOrderService = serviceOrderService;
     }
 
@@ -34,13 +47,21 @@ public class BudgetGeneratedEventListener extends AbstractSqsQueueListener<Budge
 
     @Override
     protected void processPayload(BudgetGeneratedEventMessage message) {
-        log.info("Processando eventBugetGenerated para serviceOrderId={}, totalBudgetAmount={}",
-                message.getServiceOrderId(), message.getTotalBudgetAmount());
-        serviceOrderService.applyBudget(
-                message.getServiceOrderId(),
-                message.getTotalLaborAmount(),
-                message.getTotalSupplyAmount(),
-                message.getTotalBudgetAmount()
-        );
+        log.info("Processando eventBugetGenerated para serviceOrderId={}, totalBudgetAmount={}, paymentLink={}",
+                message.getServiceOrderId(), message.getTotalBudgetAmount(), message.getPaymentLink());
+        if (message.getPaymentLink() != null && !message.getPaymentLink().isBlank()) {
+            serviceOrderService.applyBudget(
+                    message.getServiceOrderId(),
+                    message.getTotalLaborAmount(),
+                    message.getTotalSupplyAmount(),
+                    message.getTotalBudgetAmount(),
+                    message.getPaymentLink());
+        } else {
+            serviceOrderService.applyBudget(
+                    message.getServiceOrderId(),
+                    message.getTotalLaborAmount(),
+                    message.getTotalSupplyAmount(),
+                    message.getTotalBudgetAmount());
+        }
     }
 }

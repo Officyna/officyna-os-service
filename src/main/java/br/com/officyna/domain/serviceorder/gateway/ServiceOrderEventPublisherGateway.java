@@ -10,4 +10,6 @@ public interface ServiceOrderEventPublisherGateway {
     void publishForDiagnostics(String serviceOrderId);
 
     void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies);
+
+    default void publishServiceOrderRecused(String serviceOrderId, List<SupplyDetailDTO> supplies) {}
 }

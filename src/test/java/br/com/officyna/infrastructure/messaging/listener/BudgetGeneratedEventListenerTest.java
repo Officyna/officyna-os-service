@@ -21,34 +21,33 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BudgetGeneratedEventListenerTest {
 
-    @Mock
-    private SqsClient sqsClient;
+        @Mock
+        private SqsClient sqsClient;
 
-    @Mock
-    private ServiceOrderService serviceOrderService;
+        @Mock
+        private ServiceOrderService serviceOrderService;
 
-    private ObjectMapper objectMapper;
-    private BudgetGeneratedEventListener listener;
+        private ObjectMapper objectMapper;
+        private BudgetGeneratedEventListener listener;
 
-    @BeforeEach
-    void setUp() {
-        objectMapper = new ObjectMapper();
-        listener = new BudgetGeneratedEventListener(
-                sqsClient,
-                objectMapper,
-                serviceOrderService,
-                "eventBugetGenerated",
-                5
-        );
-    }
+        @BeforeEach
+        void setUp() {
+                objectMapper = new ObjectMapper();
+                listener = new BudgetGeneratedEventListener(
+                                sqsClient,
+                                objectMapper,
+                                serviceOrderService,
+                                "eventBugetGenerated",
+                                5);
+        }
 
-    private Message createMessage(String id, String body) {
-        return Message.builder()
-                .messageId(id)
-                .receiptHandle("receipt-" + id)
-                .body(body)
-                .build();
-    }
+        private Message createMessage(String id, String body) {
+                return Message.builder()
+                                .messageId(id)
+                                .receiptHandle("receipt-" + id)
+                                .body(body)
+                                .build();
+        }
 
     @Test
     @DisplayName("Deve processar eventBugetGenerated e aplicar orçamento")
@@ -75,8 +74,51 @@ class BudgetGeneratedEventListenerTest {
                 eq("so-400"),
                 eq(new BigDecimal("220.00")),
                 eq(new BigDecimal("180.00")),
-                eq(new BigDecimal("400.00"))
+                eq(new BigDecimal("400.00")),
+                eq("http://payment.com/pay/123")
         );
         verify(sqsClient).deleteMessage(any(DeleteMessageRequest.class));
     }
+
+        @Test
+        @DisplayName("Deve processar eventBugetGenerated com totalLaborsAmount (plural) sem paymentLink e publicar em DLQ em caso de erro")
+        void poll_ShouldProcessTotalLaborsAmountAndPublishToDlqOnError() {
+                BudgetGeneratedEventListener listenerWithDlq = new BudgetGeneratedEventListener(
+                                sqsClient,
+                                objectMapper,
+                                serviceOrderService,
+                                "eventBugetGenerated",
+                                "eventBugetGeneratedDlq",
+                                5);
+
+                when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class))).thenAnswer(inv -> {
+                        GetQueueUrlRequest req = inv.getArgument(0);
+                        return GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/" + req.queueName())
+                                        .build();
+                });
+
+                String json = """
+                                {
+                                  "serviceOrderId": "so-401",
+                                  "totalLaborsAmount": 220.00,
+                                  "totalSupplyAmount": 180.00,
+                                  "totalBudgetAmount": 400.00
+                                }
+                                """;
+                Message message = createMessage("msg-2", json);
+                when(sqsClient.receiveMessage(any(ReceiveMessageRequest.class)))
+                                .thenReturn(ReceiveMessageResponse.builder().messages(List.of(message)).build());
+                doThrow(new RuntimeException("Erro orçamento")).when(serviceOrderService).applyBudget(
+                                eq("so-401"),
+                                eq(new BigDecimal("220.00")),
+                                eq(new BigDecimal("180.00")),
+                                eq(new BigDecimal("400.00")));
+
+                listenerWithDlq.poll();
+
+                verify(sqsClient).sendMessage(argThat((SendMessageRequest req) -> req.queueUrl()
+                                .equals("http://localhost:4566/eventBugetGeneratedDlq")
+                                && req.messageBody().equals(json)));
+                verify(sqsClient, never()).deleteMessage(any(DeleteMessageRequest.class));
+        }
 }
