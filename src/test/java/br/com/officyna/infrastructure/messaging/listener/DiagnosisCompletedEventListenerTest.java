@@ -80,4 +80,36 @@ class DiagnosisCompletedEventListenerTest {
         verifyNoInteractions(serviceOrderService);
         verify(sqsClient, never()).deleteMessage(any(DeleteMessageRequest.class));
     }
+
+    @Test
+    @DisplayName("Deve publicar em eventDiagnosisCompletedDlq quando ocorrer falha no processamento")
+    void poll_ShouldPublishToDlq_WhenProcessingFails() {
+        DiagnosisCompletedEventListener listenerWithDlq = new DiagnosisCompletedEventListener(
+                sqsClient,
+                objectMapper,
+                serviceOrderService,
+                "eventDiagnosisCompleted",
+                "eventDiagnosisCompletedDlq",
+                5
+        );
+
+        when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class))).thenAnswer(inv -> {
+            GetQueueUrlRequest req = inv.getArgument(0);
+            return GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/" + req.queueName()).build();
+        });
+
+        String json = "{\"serviceOrderId\":\"so-300\"}";
+        Message message = createMessage("msg-dlq", json);
+        when(sqsClient.receiveMessage(any(ReceiveMessageRequest.class)))
+                .thenReturn(ReceiveMessageResponse.builder().messages(List.of(message)).build());
+        doThrow(new RuntimeException("Falha")).when(serviceOrderService).handleDiagnosisCompleted("so-300");
+
+        listenerWithDlq.poll();
+
+        verify(sqsClient).sendMessage(argThat((SendMessageRequest req) ->
+                req.queueUrl().equals("http://localhost:4566/eventDiagnosisCompletedDlq")
+                        && req.messageBody().equals(json)
+        ));
+        verify(sqsClient, never()).deleteMessage(any(DeleteMessageRequest.class));
+    }
 }

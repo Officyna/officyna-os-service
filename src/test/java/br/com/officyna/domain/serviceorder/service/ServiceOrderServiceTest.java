@@ -125,8 +125,7 @@ class ServiceOrderServiceTest {
                 emDiagnostico,
                 aguardandoAprovacao,
                 recebidaMaisAntiga,
-                emExecucao
-        ));
+                emExecucao));
 
         List<ServiceOrder> result = service.findAll();
 
@@ -135,8 +134,7 @@ class ServiceOrderServiceTest {
                 aguardandoAprovacao,
                 emDiagnostico,
                 recebidaMaisAntiga,
-                recebidaMaisNova
-        );
+                recebidaMaisNova);
     }
 
     @Test
@@ -292,7 +290,8 @@ class ServiceOrderServiceTest {
         ServiceOrder entity = buildEntity("id-1", ServiceOrderStatus.RECEBIDA);
         entity.setLabors(existingLabors);
 
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
 
         when(repository.findById("id-1")).thenReturn(Optional.of(entity));
         when(laborSelectionService.getLaborSnapshot("lab-1")).thenReturn(labor);
@@ -310,7 +309,8 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("removeLaborFromServiceOrder deve remover serviço pelo laborId e salvar")
     void removeLaborFromServiceOrder_ShouldRemoveLaborAndSave() {
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         List<LaborDetailDTO> details = new ArrayList<>(List.of(labor));
         LaborsDTO labors = new LaborsDTO(details, BigDecimal.TEN);
 
@@ -441,7 +441,8 @@ class ServiceOrderServiceTest {
 
         assertThatThrownBy(() -> service.updateStatus("123", ServiceOrderStatus.EM_DIAGNOSTICO))
                 .isInstanceOf(ServiceOrderBusinessException.class)
-                .hasMessageContaining("A Ordem de Serviço já foi processada com status " + ServiceOrderStatus.EM_DIAGNOSTICO.getStatusName() + ".");
+                .hasMessageContaining("A Ordem de Serviço já foi processada com status "
+                        + ServiceOrderStatus.EM_DIAGNOSTICO.getStatusName() + ".");
     }
 
     @Test
@@ -461,7 +462,8 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("startLabor deve iniciar serviço e mudar status para EM_EXECUCAO quando APROVADA")
     void startLabor_ShouldStart_AndTransitionToEmExecucao() {
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         labor.setStartDate(null);
 
         List<LaborDetailDTO> details = new ArrayList<>(List.of(labor));
@@ -482,7 +484,8 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("startLabor deve lançar DomainException quando serviço já iniciado")
     void startLabor_ShouldThrow_WhenLaborAlreadyStarted() {
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         labor.setStartDate(LocalDateTime.now());
 
         List<LaborDetailDTO> details = new ArrayList<>(List.of(labor));
@@ -501,7 +504,8 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("startLabor deve lançar NotFoundException quando serviço não pertence à OS")
     void startLabor_ShouldThrow_WhenLaborNotFound() {
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         labor.setStartDate(null);
 
         List<LaborDetailDTO> details = new ArrayList<>(List.of(labor));
@@ -521,7 +525,8 @@ class ServiceOrderServiceTest {
     @DisplayName("startLabor deve lançar DomainException quando status da OS não permite execução")
     void startLabor_ShouldThrow_WhenStatusNotAllowed() {
         ServiceOrder entity = buildEntity("id-1", ServiceOrderStatus.RECEBIDA);
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         entity.setLabors(new LaborsDTO(new ArrayList<>(List.of(labor)), BigDecimal.ZERO));
 
         when(repository.findById("id-1")).thenReturn(Optional.of(entity));
@@ -536,7 +541,8 @@ class ServiceOrderServiceTest {
     @DisplayName("finishLabor deve finalizar serviço e registrar endDate")
     void finishLabor_ShouldFinish_AndRegisterEndDate() {
         LocalDateTime start = LocalDateTime.now().minusHours(4);
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         labor.setStartDate(start);
         labor.setEndDate(null);
 
@@ -557,7 +563,8 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("finishLabor deve lançar DomainException quando serviço não foi iniciado")
     void finishLabor_ShouldThrow_WhenLaborNotStarted() {
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         labor.setStartDate(null);
         labor.setEndDate(null);
 
@@ -577,7 +584,8 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("finishLabor deve lançar NotFoundException quando serviço não pertence à OS")
     void finishLabor_ShouldThrow_WhenLaborNotFound() {
-        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null, LaborSituation.PENDENTE, LocalDateTime.now());
+        LaborDetailDTO labor = new LaborDetailDTO("lab-1", "Serviço", "Desc", BigDecimal.TEN, null, null,
+                LaborSituation.PENDENTE, LocalDateTime.now());
         labor.setStartDate(LocalDateTime.now().minusHours(2));
         labor.setEndDate(null);
 
@@ -675,8 +683,7 @@ class ServiceOrderServiceTest {
                 "so-1",
                 new BigDecimal("200.00"),
                 new BigDecimal("150.00"),
-                new BigDecimal("350.00")
-        );
+                new BigDecimal("350.00"));
 
         assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
         assertThat(result.getTotalBudgetAmount()).isEqualTo(new BigDecimal("350.00"));
@@ -692,8 +699,10 @@ class ServiceOrderServiceTest {
     void handleDiagnosisCompleted_ShouldPublishGeneratePayment() {
         ServiceOrder entity = buildEntity("so-1", ServiceOrderStatus.EM_DIAGNOSTICO);
 
-        LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l-1").name("Troca").situation(LaborSituation.PENDENTE).build();
-        LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l-2").name("Alinhamento").situation(LaborSituation.REJEITADO).build();
+        LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l-1").name("Troca").situation(LaborSituation.PENDENTE)
+                .build();
+        LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l-2").name("Alinhamento")
+                .situation(LaborSituation.REJEITADO).build();
         entity.setLabors(new LaborsDTO(List.of(labor1, labor2), new BigDecimal("100.00")));
 
         SupplyDetailDTO supply = SupplyDetailDTO.builder().id("s-1").name("Filtro").build();
@@ -706,8 +715,7 @@ class ServiceOrderServiceTest {
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-1"),
                 argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
-                argThat(list -> list.size() == 1 && list.get(0).getId().equals("s-1"))
-        );
+                argThat(list -> list.size() == 1 && list.get(0).getId().equals("s-1")));
     }
 
     // ─────────────── generatePaymentForServiceOrder ───────────────
@@ -728,8 +736,77 @@ class ServiceOrderServiceTest {
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-2"),
                 argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
-                argThat(List::isEmpty)
-        );
+                argThat(List::isEmpty));
+    }
+
+    // ─────────────── SAGA Compensations ───────────────
+
+    @Test
+    @DisplayName("applyBudget na 2ª passagem (já em AGUARDANDO_APROVACAO) deve atualizar paymentLink sem lançar erro")
+    void applyBudget_WhenAlreadyAguardandoAprovacao_ShouldUpdatePaymentLinkWithoutError() {
+        ServiceOrder entity = buildEntity("so-budget-2", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-budget-2")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-2",
+                new BigDecimal("220.00"),
+                new BigDecimal("180.00"),
+                new BigDecimal("400.00"),
+                "https://mercadopago.com/link-123");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        assertThat(result.getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        verify(repository).save(entity);
+    }
+
+    @Test
+    @DisplayName("cancelServiceOrder deve cancelar O.S APROVADA (não em execução) e publicar eventServiceOrderRecused")
+    void cancelServiceOrder_WhenNotInExecution_ShouldSetRecusadaAndPublishEvent() {
+        ServiceOrder entity = buildEntity("so-cancel-1", ServiceOrderStatus.APROVADA);
+        SupplyDetailDTO supply = SupplyDetailDTO.builder().id("sup-1").quantity(2).build();
+        entity.setSupplys(new SupplyDTO(List.of(supply), new BigDecimal("50.00")));
+
+        when(repository.findById("so-cancel-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.cancelServiceOrder("so-cancel-1");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.RECUSADA);
+        verify(repository).save(entity);
+        verify(eventPublisherGateway).publishServiceOrderRecused(
+                eq("so-cancel-1"),
+                argThat(list -> list.size() == 1 && list.get(0).getId().equals("sup-1")));
+    }
+
+    @Test
+    @DisplayName("cancelServiceOrder deve lançar exceção quando O.S já está EM_EXECUCAO")
+    void cancelServiceOrder_WhenInExecution_ShouldThrowBusinessException() {
+        ServiceOrder entity = buildEntity("so-cancel-exec", ServiceOrderStatus.EM_EXECUCAO);
+        when(repository.findById("so-cancel-exec")).thenReturn(Optional.of(entity));
+
+        assertThatThrownBy(() -> service.cancelServiceOrder("so-cancel-exec"))
+                .isInstanceOf(ServiceOrderBusinessException.class)
+                .hasMessageContaining("Não é possível cancelar porque já está em execução");
+
+        verify(eventPublisherGateway, never()).publishServiceOrderRecused(any(), any());
+    }
+
+    @Test
+    @DisplayName("handlePaymentRejection deve atualizar statusPayment, description e status para RECUSADA")
+    void handlePaymentRejection_ShouldUpdatePaymentStatusAndOrderStatus() {
+        ServiceOrder entity = buildEntity("so-rej-1", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findById("so-rej-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.handlePaymentRejection("so-rej-1", "RECUSED", "Cartão recusado");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.RECUSADA);
+        assertThat(result.getStatusPayment()).isEqualTo("RECUSED");
+        assertThat(result.getPaymentDescription()).isEqualTo("Cartão recusado");
+        verify(repository).save(entity);
     }
 }
-

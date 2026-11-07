@@ -4,6 +4,7 @@ import br.com.officyna.domain.serviceorder.service.ServiceOrderService;
 import br.com.officyna.infrastructure.messaging.dto.DiagnosisCompletedEventMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,9 +22,21 @@ public class DiagnosisCompletedEventListener extends AbstractSqsQueueListener<Di
             SqsClient sqsClient,
             ObjectMapper objectMapper,
             ServiceOrderService serviceOrderService,
-            @Value("${aws.sqs.queues.event-diagnosis-completed:eventDiagnosisCompleted}") String queueName,
-            @Value("${aws.sqs.listener.wait-time-seconds:5}") int waitTimeSeconds) {
+            String queueName,
+            int waitTimeSeconds) {
         super(sqsClient, objectMapper, queueName, waitTimeSeconds, DiagnosisCompletedEventMessage.class);
+        this.serviceOrderService = serviceOrderService;
+    }
+
+    @Autowired
+    public DiagnosisCompletedEventListener(
+            SqsClient sqsClient,
+            ObjectMapper objectMapper,
+            ServiceOrderService serviceOrderService,
+            @Value("${aws.sqs.queues.event-diagnosis-completed:eventDiagnosisCompleted}") String queueName,
+            @Value("${aws.sqs.queues.event-diagnosis-completed-dlq:eventDiagnosisCompletedDlq}") String dlqQueueName,
+            @Value("${aws.sqs.listener.wait-time-seconds:5}") int waitTimeSeconds) {
+        super(sqsClient, objectMapper, queueName, dlqQueueName, waitTimeSeconds, DiagnosisCompletedEventMessage.class);
         this.serviceOrderService = serviceOrderService;
     }
 

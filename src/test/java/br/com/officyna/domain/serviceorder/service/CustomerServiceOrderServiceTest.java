@@ -111,8 +111,7 @@ class CustomerServiceOrderServiceTest {
 
         List<ModifySituationRequest> request = List.of(
                 new ModifySituationRequest("l1", LaborSituation.APROVADO),
-                new ModifySituationRequest("l2", LaborSituation.REJEITADO)
-        );
+                new ModifySituationRequest("l2", LaborSituation.REJEITADO));
 
         when(serviceOrderRepository.findById(orderId)).thenReturn(Optional.of(entity));
         when(serviceOrderService.save(any())).thenReturn(entity);
@@ -145,8 +144,7 @@ class CustomerServiceOrderServiceTest {
 
         List<ModifySituationRequest> request = List.of(
                 new ModifySituationRequest("l1", LaborSituation.REJEITADO),
-                new ModifySituationRequest("l2", LaborSituation.REJEITADO)
-        );
+                new ModifySituationRequest("l2", LaborSituation.REJEITADO));
 
         when(serviceOrderRepository.findById(orderId)).thenReturn(Optional.of(entity));
         when(serviceOrderService.save(any())).thenReturn(entity);
@@ -158,7 +156,9 @@ class CustomerServiceOrderServiceTest {
         assertThat(labor1.getSituation()).isEqualTo(LaborSituation.REJEITADO);
         assertThat(labor2.getSituation()).isEqualTo(LaborSituation.REJEITADO);
 
-        verify(serviceOrderService).logStatusChange(entity, ServiceOrderStatus.AGUARDANDO_APROVACAO, ServiceOrderStatus.RECUSADA);
+        verify(serviceOrderService).logStatusChange(entity, ServiceOrderStatus.AGUARDANDO_APROVACAO,
+                ServiceOrderStatus.RECUSADA);
+        verify(serviceOrderService).publishServiceOrderRecused(entity);
         verify(serviceOrderService).save(entity);
     }
 

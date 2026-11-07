@@ -5,9 +5,11 @@ import br.com.officyna.domain.serviceorder.dto.SupplyDetailDTO;
 import br.com.officyna.domain.serviceorder.gateway.ServiceOrderEventPublisherGateway;
 import br.com.officyna.infrastructure.messaging.dto.EventForDiagnosticsMessage;
 import br.com.officyna.infrastructure.messaging.dto.GeneratePaymentEventMessage;
+import br.com.officyna.infrastructure.messaging.dto.ServiceOrderRecusedEventMessage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import br.com.officyna.infrastructure.logging.CorrelationConstants;
@@ -37,17 +39,29 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
     private final ObjectMapper objectMapper;
     private final String eventForDiagnosticsQueue;
     private final String eventGeneratePaymentQueue;
+    private final String eventServiceOrderRecusedQueue;
     private final Map<String, String> resolvedQueueUrls = new ConcurrentHashMap<>();
 
     public ServiceOrderSqsPublisherGateway(
             SqsClient sqsClient,
             ObjectMapper objectMapper,
+            String eventForDiagnosticsQueue,
+            String eventGeneratePaymentQueue) {
+        this(sqsClient, objectMapper, eventForDiagnosticsQueue, eventGeneratePaymentQueue, "eventServiceOrderRecused");
+    }
+
+    @Autowired
+    public ServiceOrderSqsPublisherGateway(
+            SqsClient sqsClient,
+            ObjectMapper objectMapper,
             @Value("${aws.sqs.queues.event-for-diagnostics:eventForDiagnostics}") String eventForDiagnosticsQueue,
-            @Value("${aws.sqs.queues.event-generate-payment:eventGeneratePayment}") String eventGeneratePaymentQueue) {
+            @Value("${aws.sqs.queues.event-generate-payment:eventGeneratePayment}") String eventGeneratePaymentQueue,
+            @Value("${aws.sqs.queues.event-service-order-recused:eventServiceOrderRecused}") String eventServiceOrderRecusedQueue) {
         this.sqsClient = sqsClient;
         this.objectMapper = objectMapper;
         this.eventForDiagnosticsQueue = eventForDiagnosticsQueue;
         this.eventGeneratePaymentQueue = eventGeneratePaymentQueue;
+        this.eventServiceOrderRecusedQueue = eventServiceOrderRecusedQueue;
     }
 
     @Override
@@ -62,7 +76,8 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
     }
 
     @Override
-    public void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies) {
+    public void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors,
+            List<SupplyDetailDTO> supplies) {
         log.info("Publicando eventGeneratePayment para serviceOrderId={} na fila: {}",
                 serviceOrderId, eventGeneratePaymentQueue);
         GeneratePaymentEventMessage payload = GeneratePaymentEventMessage.builder()
@@ -71,6 +86,23 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
                 .supplies(supplies)
                 .build();
         publishEvent(eventGeneratePaymentQueue, payload);
+    }
+
+    @Override
+    public void publishServiceOrderRecused(String serviceOrderId, List<SupplyDetailDTO> supplies) {
+        log.info("Publicando eventServiceOrderRecused para serviceOrderId={} na fila: {}",
+                serviceOrderId, eventServiceOrderRecusedQueue);
+        List<ServiceOrderRecusedEventMessage.RecusedSupplyItem> items = (supplies != null)
+                ? supplies.stream()
+                        .map(ServiceOrderRecusedEventMessage.RecusedSupplyItem::from)
+                        .toList()
+                : List.of();
+        ServiceOrderRecusedEventMessage payload = ServiceOrderRecusedEventMessage.builder()
+                .serviceOrderId(serviceOrderId)
+                .status("RECUSADA")
+                .supplies(items)
+                .build();
+        publishEvent(eventServiceOrderRecusedQueue, payload);
     }
 
     public void publishEvent(String targetQueue, Object payload) {
@@ -90,8 +122,7 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
                     CorrelationConstants.CORRELATION_ID_HEADER, MessageAttributeValue.builder()
                             .dataType("String")
                             .stringValue(correlationId)
-                            .build()
-            );
+                            .build());
 
             String authorization = resolveAuthorizationHeader();
             if (authorization != null && !authorization.isBlank()) {
@@ -99,8 +130,7 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
                         CorrelationConstants.AUTHORIZATION_HEADER, MessageAttributeValue.builder()
                                 .dataType("String")
                                 .stringValue(authorization)
-                                .build()
-                );
+                                .build());
             }
 
             SendMessageRequest request = SendMessageRequest.builder()
@@ -139,7 +169,8 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
 
     private String resolveAuthorizationHeader() {
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
@@ -149,7 +180,8 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
             }
 
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.getCredentials() instanceof String credentials && !credentials.isBlank()) {
+            if (authentication != null && authentication.getCredentials() instanceof String credentials
+                    && !credentials.isBlank()) {
                 return credentials.startsWith("Bearer ") ? credentials : "Bearer " + credentials;
             }
 

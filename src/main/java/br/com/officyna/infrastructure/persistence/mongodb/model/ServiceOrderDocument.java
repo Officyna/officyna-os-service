@@ -59,6 +59,12 @@ public class ServiceOrderDocument {
 
     private BigDecimal totalBudgetAmount;
 
+    private String paymentLink;
+
+    private String statusPayment;
+
+    private String paymentDescription;
+
     @Setter(NONE)
     @CreatedDate
     private LocalDateTime createdAt;
@@ -67,4 +73,3 @@ public class ServiceOrderDocument {
     @LastModifiedDate
     private LocalDateTime updatedAt;
 }
-

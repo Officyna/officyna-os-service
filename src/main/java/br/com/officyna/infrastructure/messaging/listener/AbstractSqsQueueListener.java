@@ -10,9 +10,12 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,6 +26,7 @@ public abstract class AbstractSqsQueueListener<T> {
     protected final SqsClient sqsClient;
     protected final ObjectMapper objectMapper;
     protected final String queueName;
+    protected final String dlqQueueName;
     protected final int waitTimeSeconds;
     protected final Class<T> payloadClass;
     private final Map<String, String> resolvedQueueUrls = new ConcurrentHashMap<>();
@@ -33,9 +37,20 @@ public abstract class AbstractSqsQueueListener<T> {
             String queueName,
             int waitTimeSeconds,
             Class<T> payloadClass) {
+        this(sqsClient, objectMapper, queueName, null, waitTimeSeconds, payloadClass);
+    }
+
+    protected AbstractSqsQueueListener(
+            SqsClient sqsClient,
+            ObjectMapper objectMapper,
+            String queueName,
+            String dlqQueueName,
+            int waitTimeSeconds,
+            Class<T> payloadClass) {
         this.sqsClient = sqsClient;
         this.objectMapper = objectMapper;
         this.queueName = queueName;
+        this.dlqQueueName = dlqQueueName;
         this.waitTimeSeconds = waitTimeSeconds;
         this.payloadClass = payloadClass;
     }
@@ -88,9 +103,46 @@ public abstract class AbstractSqsQueueListener<T> {
         } catch (Exception e) {
             log.error("Falha ao processar mensagem id={} da fila {}. Conteúdo: {}",
                     msg.messageId(), queueName, msg.body(), e);
+            publishToDlq(msg, correlationId, authorization);
         } finally {
             MDC.remove(CorrelationConstants.CORRELATION_ID_KEY);
             MDC.remove(CorrelationConstants.AUTHORIZATION_KEY);
+        }
+    }
+
+    protected void publishToDlq(Message msg, String correlationId, String authorization) {
+        if (dlqQueueName == null || dlqQueueName.isBlank()) {
+            return;
+        }
+        try {
+            String dlqUrl = resolveQueueUrl(dlqQueueName);
+            Map<String, MessageAttributeValue> attributes = new HashMap<>();
+            if (correlationId != null && !correlationId.isBlank()) {
+                attributes.put(
+                        CorrelationConstants.CORRELATION_ID_HEADER,
+                        MessageAttributeValue.builder()
+                                .dataType("String")
+                                .stringValue(correlationId)
+                                .build());
+            }
+            if (authorization != null && !authorization.isBlank()) {
+                attributes.put(
+                        CorrelationConstants.AUTHORIZATION_HEADER,
+                        MessageAttributeValue.builder()
+                                .dataType("String")
+                                .stringValue(authorization)
+                                .build());
+            }
+            sqsClient.sendMessage(SendMessageRequest.builder()
+                    .queueUrl(dlqUrl)
+                    .messageBody(msg.body())
+                    .messageAttributes(attributes)
+                    .build());
+            log.info("Mensagem id={} enviada para DLQ {} com correlationId={}",
+                    msg.messageId(), dlqQueueName, correlationId);
+        } catch (Exception dlqEx) {
+            log.error("Falha ao publicar mensagem id={} na DLQ {}: {}",
+                    msg.messageId(), dlqQueueName, dlqEx.getMessage(), dlqEx);
         }
     }
 
@@ -114,7 +166,8 @@ public abstract class AbstractSqsQueueListener<T> {
                 }
             }
             if (msg.messageAttributes().containsKey(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER)) {
-                String val = msg.messageAttributes().get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).stringValue();
+                String val = msg.messageAttributes().get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER)
+                        .stringValue();
                 if (val != null && !val.isBlank()) {
                     return val;
                 }
@@ -136,7 +189,8 @@ public abstract class AbstractSqsQueueListener<T> {
                     }
                     if (msgAttrs.has(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER)
                             && msgAttrs.get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).has("Value")) {
-                        String val = msgAttrs.get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).get("Value").asText();
+                        String val = msgAttrs.get(CorrelationConstants.LEGACY_CORRELATION_ID_HEADER).get("Value")
+                                .asText();
                         if (val != null && !val.isBlank()) {
                             return val;
                         }
@@ -184,5 +238,9 @@ public abstract class AbstractSqsQueueListener<T> {
 
     public String getQueueName() {
         return queueName;
+    }
+
+    public String getDlqQueueName() {
+        return dlqQueueName;
     }
 }

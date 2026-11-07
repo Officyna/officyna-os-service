@@ -184,4 +184,34 @@ class ServiceOrderSqsPublisherGatewayTest {
         assertThatThrownBy(() -> emptyGateway.publishForDiagnostics("so-123"))
                 .isInstanceOf(RuntimeException.class);
     }
+
+    @Test
+    @DisplayName("Deve publicar eventServiceOrderRecused com supplies e sypplyes para compensação SAGA")
+    void publishServiceOrderRecused_ShouldPublishCompensationEvent() {
+        when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventServiceOrderRecused").build());
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("msg-rec-1").build());
+
+        List<SupplyDetailDTO> supplies = List.of(
+                SupplyDetailDTO.builder()
+                        .id("sup-123")
+                        .name("Pastilha de freio")
+                        .quantity(10)
+                        .unitPrice(new BigDecimal("100.00"))
+                        .build()
+        );
+
+        gateway.publishServiceOrderRecused("so-999", supplies);
+
+        ArgumentCaptor<SendMessageRequest> captor = ArgumentCaptor.forClass(SendMessageRequest.class);
+        verify(sqsClient).sendMessage(captor.capture());
+
+        SendMessageRequest request = captor.getValue();
+        assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/eventServiceOrderRecused");
+        assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-999\"");
+        assertThat(request.messageBody()).contains("\"supplieId\":\"sup-123\"");
+        assertThat(request.messageBody()).contains("\"quantity\":10");
+        assertThat(request.messageBody()).contains("\"sypplyes\"");
+    }
 }

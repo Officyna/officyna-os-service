@@ -20,15 +20,17 @@ create_queue_with_dlq() {
     --attributes "{\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"${DLQ_ARN}\\\",\\\"maxReceiveCount\\\":\\\"3\\\"}\"}"
 }
 
-# Filas publicadas pelo os-service (com suas respectivas DLQs)
+# Filas com suas respectivas DLQs (padrão SAGA)
 create_queue_with_dlq "eventForDiagnostics"
 create_queue_with_dlq "eventGeneratePayment"
+create_queue_with_dlq "eventDiagnosis"
+create_queue_with_dlq "eventDiagnosisCompleted"
+create_queue_with_dlq "eventBugetGenerated"
 
-# Demais filas consumidas localmente
-awslocal sqs create-queue --queue-name eventDiagnosis
-awslocal sqs create-queue --queue-name eventDiagnosisCompleted
-awslocal sqs create-queue --queue-name eventBugetGenerated
+# Demais filas/tópicos do fluxo SAGA
+awslocal sqs create-queue --queue-name eventServiceOrderRecused
 awslocal sqs create-queue --queue-name topicAprovacao
+awslocal sqs create-queue --queue-name topicRejeicao
 
 echo "LocalStack SQS Queues created successfully:"
 awslocal sqs list-queues

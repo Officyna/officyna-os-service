@@ -35,7 +35,8 @@ public class ServiceOrderController implements ServiceOrderApi {
 
     @Override
     public ResponseEntity<ServiceOrderResponse> createServiceOrder(@RequestBody NewServiceOrderRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(serviceOrderControllerAdapter.createServiceOrder(request));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(serviceOrderControllerAdapter.createServiceOrder(request));
     }
 
     @Override
@@ -87,5 +88,10 @@ public class ServiceOrderController implements ServiceOrderApi {
     @Override
     public ResponseEntity<SendToCustomerResponse> sendToCustomer(String id) {
         return ResponseEntity.ok(serviceOrderControllerAdapter.sendToCustomer(id));
+    }
+
+    @Override
+    public ResponseEntity<ServiceOrderResponse> cancelServiceOrder(String id) {
+        return ResponseEntity.ok(serviceOrderControllerAdapter.cancelServiceOrder(id));
     }
 }
