@@ -81,6 +81,19 @@ class ServiceOrderPresenterTest {
     }
 
     @Test
+    @DisplayName("Deve retornar a data de aprovação quando o status for PENDENT_PAGAMENTO")
+    void toResponse_ShouldReturnApprovalDate_WhenStatusIsPendentPagamento() {
+        LocalDateTime date = LocalDateTime.of(2024, Month.MARCH, 5, 11, 15);
+        ServiceOrder entity = baseEntity(ServiceOrderStatus.PENDENT_PAGAMENTO);
+        entity.setApprovalDate(date);
+
+        ServiceOrderResponse response = presenter.toResponse(entity);
+
+        assertThat(response.statusDate()).isEqualTo("05/03/2024 11:15");
+        assertThat(response.serviceOrderStatus()).isEqualTo("Pendente pagamento");
+    }
+
+    @Test
     @DisplayName("Deve retornar a data de início de execução quando o status for EM_EXECUCAO")
     void toResponse_ShouldReturnExecutionStartDate_WhenStatusIsEmExecucao() {
         LocalDateTime date = LocalDateTime.of(2024, Month.APRIL, 20, 8, 0);

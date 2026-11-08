@@ -97,8 +97,14 @@ public class ServiceOrder {
             if (!ServiceOrderStatus.EM_DIAGNOSTICO.equals(this.status)) {
                 throw new ServiceOrderBusinessException("Para aguardar aprovação, a O.S. deve ter passado pelo diagnóstico.");
             }
-        }else if(status.equals(ServiceOrderStatus.APROVADA)){
+        }else if(status.equals(ServiceOrderStatus.PENDENT_PAGAMENTO)){
             if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(this.status)) {
+                throw new ServiceOrderBusinessException("Apenas ordens AGUARDANDO APROVAÇÃO podem ficar pendentes de pagamento.");
+            }
+            this.validateLaborsForAProvalStatus();
+        }else if(status.equals(ServiceOrderStatus.APROVADA)){
+            if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(this.status)
+                    && !ServiceOrderStatus.PENDENT_PAGAMENTO.equals(this.status)) {
                 throw new ServiceOrderBusinessException("Apenas ordens AGUARDANDO APROVAÇÃO podem ser aprovadas.");
             }
             this.validateLaborsForAProvalStatus();
@@ -165,7 +171,7 @@ public class ServiceOrder {
             case RECEBIDA -> this.setRegistrationDate(now);
             case EM_DIAGNOSTICO -> this.setDiagnosisStartDate(now);
             case AGUARDANDO_APROVACAO -> this.setClientSendDate(now);
-            case APROVADA -> this.setApprovalDate(now);
+            case PENDENT_PAGAMENTO, APROVADA -> this.setApprovalDate(now);
             case EM_EXECUCAO -> this.setExecutionStartDate(now);
             case ENTREGUE -> this.setDeliveryDate(now);
             case FINALIZADA -> this.setFinalizationDate(now);

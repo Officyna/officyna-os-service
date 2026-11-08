@@ -715,9 +715,12 @@ class ServiceOrderServiceTest {
         entity.setCustomer(customerDTO);
 
         when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
 
         service.handleDiagnosisCompleted("so-1");
 
+        assertThat(entity.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        verify(repository).save(entity);
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-1"),
                 eq("cliente@email.com"),
@@ -780,6 +783,31 @@ class ServiceOrderServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
         assertThat(result.getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        verify(repository).save(entity);
+    }
+
+    @Test
+    @DisplayName("applyBudget quando O.S está em PENDENT_PAGAMENTO deve manter status PENDENT_PAGAMENTO e atualizar payment")
+    void applyBudget_WhenInPendentPagamento_ShouldKeepStatusAndUpdatePayment() {
+        ServiceOrder entity = buildEntity("so-budget-pend", ServiceOrderStatus.PENDENT_PAGAMENTO);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-budget-pend")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-pend",
+                new BigDecimal("150.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("21.82"),
+                new BigDecimal("291.16"),
+                "https://mercadopago.com/link-123",
+                "pix-qr",
+                "pix-qr-base64");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.PENDENT_PAGAMENTO);
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
         verify(repository).save(entity);
     }
 
