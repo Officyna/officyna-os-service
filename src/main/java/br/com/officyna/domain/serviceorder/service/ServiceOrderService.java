@@ -97,6 +97,7 @@ public class ServiceOrderService {
                 return ordersServiceEntity.stream()
                                 .filter(order -> order.getStatus() == ServiceOrderStatus.EM_EXECUCAO
                                                 || order.getStatus() == ServiceOrderStatus.AGUARDANDO_APROVACAO
+                                                || order.getStatus() == ServiceOrderStatus.PENDENT_PAGAMENTO
                                                 || order.getStatus() == ServiceOrderStatus.APROVADA
                                                 || order.getStatus() == ServiceOrderStatus.EM_DIAGNOSTICO
                                                 || order.getStatus() == ServiceOrderStatus.RECEBIDA)
@@ -683,7 +684,8 @@ public class ServiceOrderService {
                         entity.setPaymentLink(paymentLink);
                 }
 
-                if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
+                if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)
+                                && !ServiceOrderStatus.PENDENT_PAGAMENTO.equals(previousStatus)) {
                         entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
 
                         logStatusChange(
@@ -990,7 +992,7 @@ public class ServiceOrderService {
                         case AGUARDANDO_APROVACAO ->
                                 entity.getClientSendDate();
 
-                        case APROVADA ->
+                        case PENDENT_PAGAMENTO, APROVADA ->
                                 entity.getApprovalDate();
 
                         case EM_EXECUCAO ->

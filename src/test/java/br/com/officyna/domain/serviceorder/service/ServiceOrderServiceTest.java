@@ -787,6 +787,31 @@ class ServiceOrderServiceTest {
     }
 
     @Test
+    @DisplayName("applyBudget quando O.S está em PENDENT_PAGAMENTO deve manter status PENDENT_PAGAMENTO e atualizar payment")
+    void applyBudget_WhenInPendentPagamento_ShouldKeepStatusAndUpdatePayment() {
+        ServiceOrder entity = buildEntity("so-budget-pend", ServiceOrderStatus.PENDENT_PAGAMENTO);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-budget-pend")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-pend",
+                new BigDecimal("150.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("21.82"),
+                new BigDecimal("291.16"),
+                "https://mercadopago.com/link-123",
+                "pix-qr",
+                "pix-qr-base64");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.PENDENT_PAGAMENTO);
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        verify(repository).save(entity);
+    }
+
+    @Test
     @DisplayName("applyBudget deve salvar totalLaborsAmount, totalSupplyAmount, totalTaxesAmount, totalBudgetAmount e objeto payment")
     void applyBudget_WithTaxesAndPaymentObject_ShouldPersistAllFields() {
         ServiceOrder entity = buildEntity("so-budget-full", ServiceOrderStatus.EM_DIAGNOSTICO);

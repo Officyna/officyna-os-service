@@ -152,8 +152,14 @@ public class CustomerServiceOrderService {
                                                 serviceOrderId);
                                 serviceOrderService.publishServiceOrderRecused(entity);
                         } else {
+                                ServiceOrderStatus previousStatus = entity.getStatus();
+                                entity.setStatus(ServiceOrderStatus.PENDENT_PAGAMENTO);
+                                serviceOrderService.logStatusChange(
+                                                entity,
+                                                previousStatus,
+                                                ServiceOrderStatus.PENDENT_PAGAMENTO);
                                 log.info(
-                                                "Labor situations updated for service order {}. Order remains in {} awaiting payment confirmation.",
+                                                "Labor situations updated for service order {}. Order status updated to {} awaiting payment confirmation.",
                                                 serviceOrderId,
                                                 entity.getStatus());
                                 serviceOrderService.generatePaymentForServiceOrder(serviceOrderId);

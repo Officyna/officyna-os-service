@@ -39,7 +39,7 @@ public class ServiceOrderPresenter {
             case RECEBIDA -> statusDate = entity.getRegistrationDate();
             case EM_DIAGNOSTICO -> statusDate = entity.getDiagnosisStartDate();
             case AGUARDANDO_APROVACAO -> statusDate = entity.getClientSendDate();
-            case APROVADA -> statusDate = entity.getApprovalDate();
+            case PENDENT_PAGAMENTO, APROVADA -> statusDate = entity.getApprovalDate();
             case EM_EXECUCAO -> statusDate = entity.getExecutionStartDate();
             case ENTREGUE -> statusDate = entity.getDeliveryDate();
             case FINALIZADA -> statusDate = entity.getFinalizationDate();
