@@ -50,18 +50,28 @@ class BudgetGeneratedEventListenerTest {
         }
 
     @Test
-    @DisplayName("Deve processar eventBugetGenerated e aplicar orçamento")
-    void poll_ShouldProcessBudgetGeneratedAndAcknowledge() {
+    @DisplayName("Deve processar eventBugetGenerated com contrato aninhado totals e dados de pagamento")
+    void poll_ShouldProcessBudgetGeneratedNestedContractAndAcknowledge() {
         when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
                 .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/eventBugetGenerated").build());
 
         String json = """
                 {
-                  "serviceOrderId": "so-400",
-                  "totalLaborAmount": 220.00,
-                  "totalSupplyAmount": 180.00,
-                  "totalBudgetAmount": 400.00,
-                  "paymentLink": "http://payment.com/pay/123"
+                  "serviceOrderId": "6af0b1a10be5150d141cafcd",
+                  "totals": {
+                    "totalLaborsAmount": 150,
+                    "totalSupplyAmount": 119.34,
+                    "totalTaxesAmount": 21.82,
+                    "totalBudgetAmount": 291.16
+                  },
+                  "taxDetails": {
+                    "iss": 7.5,
+                    "icms": 14.32,
+                    "pisCofins": 0
+                  },
+                  "paymentLink": "http://payment.com/pay/123",
+                  "qrCode": "00020126580014BR.GOV.BCB.PIX",
+                  "qrCodeBase64": "iVBORw0KGgoAAAANSUhEUgAA..."
                 }
                 """;
         Message message = createMessage("msg-1", json);
@@ -71,11 +81,14 @@ class BudgetGeneratedEventListenerTest {
         listener.poll();
 
         verify(serviceOrderService).applyBudget(
-                eq("so-400"),
-                eq(new BigDecimal("220.00")),
-                eq(new BigDecimal("180.00")),
-                eq(new BigDecimal("400.00")),
-                eq("http://payment.com/pay/123")
+                eq("6af0b1a10be5150d141cafcd"),
+                eq(new BigDecimal("150")),
+                eq(new BigDecimal("119.34")),
+                eq(new BigDecimal("21.82")),
+                eq(new BigDecimal("291.16")),
+                eq("http://payment.com/pay/123"),
+                eq("00020126580014BR.GOV.BCB.PIX"),
+                eq("iVBORw0KGgoAAAANSUhEUgAA...")
         );
         verify(sqsClient).deleteMessage(any(DeleteMessageRequest.class));
     }
@@ -112,7 +125,11 @@ class BudgetGeneratedEventListenerTest {
                                 eq("so-401"),
                                 eq(new BigDecimal("220.00")),
                                 eq(new BigDecimal("180.00")),
-                                eq(new BigDecimal("400.00")));
+                                eq(null),
+                                eq(new BigDecimal("400.00")),
+                                eq(null),
+                                eq(null),
+                                eq(null));
 
                 listenerWithDlq.poll();
 

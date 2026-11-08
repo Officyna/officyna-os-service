@@ -25,7 +25,11 @@ public record ServiceOrderResponse (
 
     String statusDate,
 
+    String totalTaxesAmount,
+
     String totalBudgetAmount,
+
+    PaymentDTO payment,
 
     String createdAt
 ){}

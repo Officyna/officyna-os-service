@@ -29,8 +29,10 @@ public class ServiceOrder {
 
     private MechanicDTO mechanic;
 
+    @Builder.Default
     private LaborsDTO labors = new LaborsDTO(new java.util.ArrayList<>(), BigDecimal.ZERO);
 
+    @Builder.Default
     private SupplyDTO supplys = new SupplyDTO(new java.util.ArrayList<>(), BigDecimal.ZERO);
 
     private LocalDateTime registrationDate;
@@ -53,7 +55,11 @@ public class ServiceOrder {
 
     private String informationText;
 
+    private BigDecimal totalTaxesAmount;
+
     private BigDecimal totalBudgetAmount;
+
+    private PaymentDTO payment;
 
     private String paymentLink;
 

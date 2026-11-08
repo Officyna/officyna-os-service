@@ -607,62 +607,90 @@ public class ServiceOrderService {
                         BigDecimal totalLaborAmount,
                         BigDecimal totalSupplyAmount,
                         BigDecimal totalBudgetAmount) {
-                return applyBudget(id, totalLaborAmount, totalSupplyAmount, totalBudgetAmount, null);
+                return applyBudget(id, totalLaborAmount, totalSupplyAmount, null, totalBudgetAmount, null, null, null);
         }
 
-    public ServiceOrder applyBudget(
-            String id,
-            BigDecimal totalLaborAmount,
-            BigDecimal totalSupplyAmount,
-            BigDecimal totalBudgetAmount,
-            String paymentLink) {
-
-        log.info(
-                "Applying budget to service order id: {}, totalBudgetAmount: {}, paymentLink: {}",
-                id,
-                totalBudgetAmount,
-                paymentLink
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-        ServiceOrderStatus previousStatus = entity.getStatus();
-
-        if (totalBudgetAmount != null) {
-            entity.setTotalBudgetAmount(totalBudgetAmount);
+        public ServiceOrder applyBudget(
+                        String id,
+                        BigDecimal totalLaborAmount,
+                        BigDecimal totalSupplyAmount,
+                        BigDecimal totalBudgetAmount,
+                        String paymentLink) {
+                return applyBudget(id, totalLaborAmount, totalSupplyAmount, null, totalBudgetAmount, paymentLink, null, null);
         }
 
-        if (entity.getLabors() != null && totalLaborAmount != null) {
-            entity.getLabors().setTotalLaborsAmount(totalLaborAmount);
+        public ServiceOrder applyBudget(
+                        String id,
+                        BigDecimal totalLaborAmount,
+                        BigDecimal totalSupplyAmount,
+                        BigDecimal totalTaxesAmount,
+                        BigDecimal totalBudgetAmount,
+                        String paymentLink,
+                        String qrCode,
+                        String qrCodeBase64) {
+
+                log.info(
+                                "Applying budget to service order id: {}, totalTaxesAmount: {}, totalBudgetAmount: {}, paymentLink: {}",
+                                id,
+                                totalTaxesAmount,
+                                totalBudgetAmount,
+                                paymentLink);
+
+                ServiceOrder entity = this.findEntityById(id);
+                ServiceOrderStatus previousStatus = entity.getStatus();
+
+                if (totalTaxesAmount != null) {
+                        entity.setTotalTaxesAmount(totalTaxesAmount);
+                }
+
+                if (totalBudgetAmount != null) {
+                        entity.setTotalBudgetAmount(totalBudgetAmount);
+                }
+
+                if (totalLaborAmount != null) {
+                        if (entity.getLabors() == null) {
+                                entity.setLabors(new LaborsDTO(new ArrayList<>(), totalLaborAmount));
+                        } else {
+                                entity.getLabors().setTotalLaborsAmount(totalLaborAmount);
+                        }
+                }
+
+                if (totalSupplyAmount != null) {
+                        if (entity.getSupplys() == null) {
+                                entity.setSupplys(new SupplyDTO(new ArrayList<>(), totalSupplyAmount));
+                        } else {
+                                entity.getSupplys().setTotalSupplyAmount(totalSupplyAmount);
+                        }
+                }
+
+                entity.setPayment(PaymentDTO.builder()
+                                .paymentLink(paymentLink)
+                                .qrCode(qrCode)
+                                .qrCodeBase64(qrCodeBase64)
+                                .build());
+
+                if (paymentLink != null && !paymentLink.isBlank()) {
+                        entity.setPaymentLink(paymentLink);
+                }
+
+                if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
+                        entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+                        logStatusChange(
+                                        entity,
+                                        previousStatus,
+                                        ServiceOrderStatus.AGUARDANDO_APROVACAO);
+                }
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Budget applied to service order id: {}. Status: {}",
+                                id,
+                                saved.getStatus());
+
+                return saved;
         }
-
-        if (entity.getSupplys() != null && totalSupplyAmount != null) {
-            entity.getSupplys().setTotalSupplyAmount(totalSupplyAmount);
-        }
-
-        if (paymentLink != null && !paymentLink.isBlank()) {
-            entity.setPaymentLink(paymentLink);
-        }
-
-        if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
-            entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
-
-            logStatusChange(
-                    entity,
-                    previousStatus,
-                    ServiceOrderStatus.AGUARDANDO_APROVACAO
-            );
-        }
-
-        ServiceOrder saved = this.save(entity);
-
-        log.info(
-                "Budget applied to service order id: {}. Status: {}",
-                id,
-                saved.getStatus()
-        );
-
-        return saved;
-    }
 
         public ServiceOrder startLabor(
                         String id,

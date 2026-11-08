@@ -173,5 +173,28 @@ class ServiceOrderPresenterTest {
         ServiceOrderResponse response = presenter.toResponse(entity);
 
         assertThat(response.totalBudgetAmount()).isEqualTo("R$ 0,00");
+        assertThat(response.totalTaxesAmount()).isEqualTo("R$ 0,00");
+    }
+
+    @Test
+    @DisplayName("Deve formatar totalTaxesAmount e retornar objeto payment na resposta")
+    void toResponse_ShouldFormatTaxesAndIncludePayment() {
+        ServiceOrder entity = baseEntity(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        entity.setTotalTaxesAmount(new BigDecimal("21.82"));
+        entity.setTotalBudgetAmount(new BigDecimal("291.16"));
+        entity.setPayment(new br.com.officyna.domain.serviceorder.dto.PaymentDTO(
+                "https://pay.officyna.com/123",
+                "pix-qr-code",
+                "base64-qr"
+        ));
+
+        ServiceOrderResponse response = presenter.toResponse(entity);
+
+        assertThat(response.totalTaxesAmount()).isEqualTo("R$ 21,82");
+        assertThat(response.totalBudgetAmount()).isEqualTo("R$ 291,16");
+        assertThat(response.payment()).isNotNull();
+        assertThat(response.payment().getPaymentLink()).isEqualTo("https://pay.officyna.com/123");
+        assertThat(response.payment().getQrCode()).isEqualTo("pix-qr-code");
+        assertThat(response.payment().getQrCodeBase64()).isEqualTo("base64-qr");
     }
 }
