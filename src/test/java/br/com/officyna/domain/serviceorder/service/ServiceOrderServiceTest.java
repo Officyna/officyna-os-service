@@ -715,9 +715,12 @@ class ServiceOrderServiceTest {
         entity.setCustomer(customerDTO);
 
         when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
 
         service.handleDiagnosisCompleted("so-1");
 
+        assertThat(entity.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        verify(repository).save(entity);
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-1"),
                 eq("cliente@email.com"),

@@ -450,6 +450,16 @@ public class ServiceOrderService {
                 log.info("Processando evento eventDiagnosisCompleted para ordem de serviço: {}", serviceOrderId);
                 ServiceOrder entity = this.findEntityById(serviceOrderId);
 
+                ServiceOrderStatus previousStatus = entity.getStatus();
+                if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
+                        entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+                        logStatusChange(
+                                        entity,
+                                        previousStatus,
+                                        ServiceOrderStatus.AGUARDANDO_APROVACAO);
+                        this.save(entity);
+                }
+
                 List<LaborDetailDTO> labors = (entity.getLabors() != null
                                 && entity.getLabors().getLaborsDetails() != null)
                                                 ? entity.getLabors().getLaborsDetails().stream()
