@@ -19,17 +19,20 @@ public class CustomerDTO {
 
     private String complement;
 
+    private String email;
+
+    private String cpf;
+
     public CustomerDTO(String id,
-                       String fullName,
-                       String phoneNumber,
-                       String street,
-                       String number,
-                       String neighborhood,
-                       String city,
-                       String state,
-                       String zipCode,
-                       String complement)
-    {
+            String fullName,
+            String phoneNumber,
+            String street,
+            String number,
+            String neighborhood,
+            String city,
+            String state,
+            String zipCode,
+            String complement) {
         this.id = id;
         this.fullName = fullName;
         this.phoneNumber = phoneNumber;
