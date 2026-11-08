@@ -118,4 +118,32 @@ class ApprovalTopicListenerTest {
         verify(serviceOrderService, never()).updateStatus(anyString(), any());
         verify(sqsClient).deleteMessage(any(DeleteMessageRequest.class));
     }
+
+    @Test
+    @DisplayName("Deve processar contrato OrderPaidEvent com objeto payment aninhado e status PAID")
+    void poll_ShouldProcessNestedPaymentObjectWithPaidStatus() {
+        when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/topicAprovacao").build());
+
+        String json = """
+                {
+                  "serviceOrderId": "6af0d7d9928004bde46d8195",
+                  "payment": {
+                    "paymentId": "ORDTST01M6YCTYAHXDMGH7H51EZ14G4Q",
+                    "status": "PAID",
+                    "paymentMethod": "PIX",
+                    "totalPaidAmount": 133.66,
+                    "paidAt": "2026-11-08T20:20:24.690576569Z"
+                  }
+                }
+                """;
+        Message message = createMessage("msg-5", json);
+        when(sqsClient.receiveMessage(any(ReceiveMessageRequest.class)))
+                .thenReturn(ReceiveMessageResponse.builder().messages(List.of(message)).build());
+
+        listener.poll();
+
+        verify(serviceOrderService).updateStatus("6af0d7d9928004bde46d8195", ServiceOrderStatus.APROVADA);
+        verify(sqsClient).deleteMessage(any(DeleteMessageRequest.class));
+    }
 }
