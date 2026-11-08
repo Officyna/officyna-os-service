@@ -784,6 +784,36 @@ class ServiceOrderServiceTest {
     }
 
     @Test
+    @DisplayName("applyBudget deve salvar totalLaborsAmount, totalSupplyAmount, totalTaxesAmount, totalBudgetAmount e objeto payment")
+    void applyBudget_WithTaxesAndPaymentObject_ShouldPersistAllFields() {
+        ServiceOrder entity = buildEntity("so-budget-full", ServiceOrderStatus.EM_DIAGNOSTICO);
+        when(repository.findById("so-budget-full")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-full",
+                new BigDecimal("150.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("21.82"),
+                new BigDecimal("291.16"),
+                "https://pay.officyna.com/link",
+                "00020126580014BR.GOV.BCB.PIX",
+                "base64-qr-code"
+        );
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        assertThat(result.getLabors().getTotalLaborsAmount()).isEqualByComparingTo("150.00");
+        assertThat(result.getSupplys().getTotalSupplyAmount()).isEqualByComparingTo("119.34");
+        assertThat(result.getTotalTaxesAmount()).isEqualByComparingTo("21.82");
+        assertThat(result.getTotalBudgetAmount()).isEqualByComparingTo("291.16");
+        assertThat(result.getPayment()).isNotNull();
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://pay.officyna.com/link");
+        assertThat(result.getPayment().getQrCode()).isEqualTo("00020126580014BR.GOV.BCB.PIX");
+        assertThat(result.getPayment().getQrCodeBase64()).isEqualTo("base64-qr-code");
+        verify(repository).save(entity);
+    }
+
+    @Test
     @DisplayName("cancelServiceOrder deve cancelar O.S APROVADA (não em execução) e publicar eventServiceOrderRecused")
     void cancelServiceOrder_WhenNotInExecution_ShouldSetRecusadaAndPublishEvent() {
         ServiceOrder entity = buildEntity("so-cancel-1", ServiceOrderStatus.APROVADA);

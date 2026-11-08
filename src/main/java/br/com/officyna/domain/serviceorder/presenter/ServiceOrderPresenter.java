@@ -26,7 +26,9 @@ public class ServiceOrderPresenter {
                 entity.getInformationText(),
                 entity.getStatus().getStatusName(),
                 this.getStatusDateByLastStatus(entity),
+                this.formatMoney(entity.getTotalTaxesAmount()),
                 this.formatMoney(entity.getTotalBudgetAmount()),
+                entity.getPayment(),
                 this.formatLocalDateTime(entity.getCreatedAt())
         );
     }
@@ -55,6 +57,9 @@ public class ServiceOrderPresenter {
     }
 
     private String formatMoney(BigDecimal value) {
+        if (value == null) {
+            return String.format(PT_BR, "R$ %.2f", BigDecimal.ZERO);
+        }
         return String.format(PT_BR, "R$ %.2f", value);
     }
 }
