@@ -16,8 +16,6 @@ import java.math.BigDecimal;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BudgetGeneratedEventMessage {
 
-    private String correlationId;
-
     private String serviceOrderId;
 
     private Totals totals;

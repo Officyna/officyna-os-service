@@ -38,7 +38,13 @@ public class RejectionTopicListener extends AbstractSqsQueueListener<ApprovalEve
                 message.getServiceOrderId(), message.getStatusPayment(), message.getDescription());
 
         String statusPayment = message.getStatusPayment();
-        if (statusPayment == null || "RECUSED".equalsIgnoreCase(statusPayment) || "RECUSADO".equalsIgnoreCase(statusPayment)) {
+        if (statusPayment == null
+                || "RECUSED".equalsIgnoreCase(statusPayment)
+                || "RECUSADO".equalsIgnoreCase(statusPayment)
+                || "REJECTED".equalsIgnoreCase(statusPayment)
+                || "CANCELED".equalsIgnoreCase(statusPayment)
+                || "CANCELLED".equalsIgnoreCase(statusPayment)
+                || "REFUNDED".equalsIgnoreCase(statusPayment)) {
             serviceOrderService.handlePaymentRejection(
                     message.getServiceOrderId(),
                     statusPayment != null ? statusPayment : "RECUSED",
