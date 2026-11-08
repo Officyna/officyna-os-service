@@ -78,10 +78,22 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
     @Override
     public void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors,
             List<SupplyDetailDTO> supplies) {
+        publishGeneratePayment(serviceOrderId, null, null, labors, supplies);
+    }
+
+    @Override
+    public void publishGeneratePayment(
+            String serviceOrderId,
+            String payerEmail,
+            String customerDocument,
+            List<LaborDetailDTO> labors,
+            List<SupplyDetailDTO> supplies) {
         log.info("Publicando eventGeneratePayment para serviceOrderId={} na fila: {}",
                 serviceOrderId, eventGeneratePaymentQueue);
         GeneratePaymentEventMessage payload = GeneratePaymentEventMessage.builder()
                 .serviceOrderId(serviceOrderId)
+                .payerEmail(payerEmail)
+                .customerDocument(customerDocument)
                 .labors(labors)
                 .supplies(supplies)
                 .build();

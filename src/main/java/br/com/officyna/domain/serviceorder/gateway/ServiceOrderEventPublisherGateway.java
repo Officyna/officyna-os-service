@@ -11,5 +11,14 @@ public interface ServiceOrderEventPublisherGateway {
 
     void publishGeneratePayment(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies);
 
+    default void publishGeneratePayment(
+            String serviceOrderId,
+            String payerEmail,
+            String customerDocument,
+            List<LaborDetailDTO> labors,
+            List<SupplyDetailDTO> supplies) {
+        publishGeneratePayment(serviceOrderId, labors, supplies);
+    }
+
     default void publishServiceOrderRecused(String serviceOrderId, List<SupplyDetailDTO> supplies) {}
 }

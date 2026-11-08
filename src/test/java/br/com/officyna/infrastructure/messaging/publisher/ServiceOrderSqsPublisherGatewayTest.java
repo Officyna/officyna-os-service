@@ -92,7 +92,7 @@ class ServiceOrderSqsPublisherGatewayTest {
                 SupplyDetailDTO.builder().id("s-1").name("Filtro").quantity(1).unitPrice(new BigDecimal("50.00")).build()
         );
 
-        gateway.publishGeneratePayment("so-456", labors, supplies);
+        gateway.publishGeneratePayment("so-456", "cliente@officyna.com", "12345678900", labors, supplies);
 
         ArgumentCaptor<SendMessageRequest> captor = ArgumentCaptor.forClass(SendMessageRequest.class);
         verify(sqsClient).sendMessage(captor.capture());
@@ -100,6 +100,8 @@ class ServiceOrderSqsPublisherGatewayTest {
         SendMessageRequest request = captor.getValue();
         assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/eventGeneratePayment");
         assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-456\"");
+        assertThat(request.messageBody()).contains("\"payerEmail\":\"cliente@officyna.com\"");
+        assertThat(request.messageBody()).contains("\"customerDocument\":\"12345678900\"");
         assertThat(request.messageBody()).contains("Troca de óleo");
         assertThat(request.messageBody()).contains("Filtro");
         assertThat(request.messageAttributes()).containsKey("correlationId");

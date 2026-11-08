@@ -62,6 +62,8 @@ class CustomerAndMecnichalServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(id);
         assertThat(result.getFullName()).isEqualTo("Ricardo Almeida");
+        assertThat(result.getEmail()).isEqualTo("ricardo.almeida@email.com");
+        assertThat(result.getCpf()).isEqualTo("342.155.890-12");
         assertThat(result.getFullAdress()).isEqualTo("Rua Flaviano de Melo, 500 - Centro, Mogi das Cruzes - SP, 08710-000");
     }
 

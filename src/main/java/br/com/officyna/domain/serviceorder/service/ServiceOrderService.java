@@ -463,7 +463,16 @@ public class ServiceOrderService {
                                                 ? entity.getSupplys().getSupplysDetails()
                                                 : List.of();
 
-                eventPublisherGateway.publishGeneratePayment(serviceOrderId, labors, supplies);
+                CustomerDTO customer = resolvePaymentCustomer(entity);
+                String payerEmail = customer != null ? customer.getEmail() : null;
+                String customerDocument = customer != null ? customer.getCpf() : null;
+
+                eventPublisherGateway.publishGeneratePayment(
+                                serviceOrderId,
+                                payerEmail,
+                                customerDocument,
+                                labors,
+                                supplies);
 
                 log.info("eventGeneratePayment publicado com sucesso para ordem de serviço: {}", serviceOrderId);
         }
@@ -485,10 +494,50 @@ public class ServiceOrderService {
                                                 ? entity.getSupplys().getSupplysDetails()
                                                 : List.of();
 
-                eventPublisherGateway.publishGeneratePayment(serviceOrderId, approvedLabors, supplies);
+                CustomerDTO customer = resolvePaymentCustomer(entity);
+                String payerEmail = customer != null ? customer.getEmail() : null;
+                String customerDocument = customer != null ? customer.getCpf() : null;
+
+                eventPublisherGateway.publishGeneratePayment(
+                                serviceOrderId,
+                                payerEmail,
+                                customerDocument,
+                                approvedLabors,
+                                supplies);
 
                 log.info("eventGeneratePayment pós-aprovação publicado com sucesso para ordem de serviço: {}",
                                 serviceOrderId);
+        }
+
+        private CustomerDTO resolvePaymentCustomer(ServiceOrder entity) {
+                if (entity.getCustomer() == null) {
+                        return null;
+                }
+                CustomerDTO current = entity.getCustomer();
+                String email = current.getEmail();
+                String cpf = current.getCpf();
+
+                if ((email == null || cpf == null)
+                                && current.getId() != null
+                                && !current.getId().isBlank()) {
+                        try {
+                                CustomerDTO enriched = customerAndMecnichalService
+                                                .getCustomer(current.getId());
+                                if (enriched != null) {
+                                        if (email == null) {
+                                                current.setEmail(enriched.getEmail());
+                                        }
+                                        if (cpf == null) {
+                                                current.setCpf(enriched.getCpf());
+                                        }
+                                }
+                        } catch (Exception e) {
+                                log.warn("Não foi possível enriquecer dados de email/cpf do cliente id={}: {}",
+                                                current.getId(), e.getMessage());
+                        }
+                }
+
+                return current;
         }
 
         public void publishServiceOrderRecused(ServiceOrder entity) {

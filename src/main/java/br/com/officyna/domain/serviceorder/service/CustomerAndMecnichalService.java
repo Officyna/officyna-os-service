@@ -23,7 +23,7 @@ public class CustomerAndMecnichalService {
         log.debug("Customer found by id: {}", id);
 
         var address = customer.getAddress();
-        return new CustomerDTO(
+        CustomerDTO dto = new CustomerDTO(
                 customer.getId(),
                 customer.getName(),
                 customer.getPhone(),
@@ -35,6 +35,9 @@ public class CustomerAndMecnichalService {
                 address != null ? address.getZipCode() : null,
                 address != null ? address.getComplement() : null
         );
+        dto.setEmail(customer.getEmail());
+        dto.setCpf(customer.getDocument());
+        return dto;
     }
 
     public Customer getCustomerByDocument(String document) {

@@ -18,8 +18,18 @@ public class GeneratePaymentEventMessage {
 
     private String serviceOrderId;
 
+    private String payerEmail;
+
+    private String customerDocument;
+
     private List<LaborDetailDTO> labors;
 
     @JsonAlias({"sypplyes", "suppliesDetails", "supplies"})
     private List<SupplyDetailDTO> supplies;
+
+    public GeneratePaymentEventMessage(String serviceOrderId, List<LaborDetailDTO> labors, List<SupplyDetailDTO> supplies) {
+        this.serviceOrderId = serviceOrderId;
+        this.labors = labors;
+        this.supplies = supplies;
+    }
 }

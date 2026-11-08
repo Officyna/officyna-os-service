@@ -708,12 +708,20 @@ class ServiceOrderServiceTest {
         SupplyDetailDTO supply = SupplyDetailDTO.builder().id("s-1").name("Filtro").build();
         entity.setSupplys(new SupplyDTO(List.of(supply), new BigDecimal("50.00")));
 
+        CustomerDTO customerDTO = new CustomerDTO();
+        customerDTO.setId("cust-1");
+        customerDTO.setEmail("cliente@email.com");
+        customerDTO.setCpf("12345678900");
+        entity.setCustomer(customerDTO);
+
         when(repository.findById("so-1")).thenReturn(Optional.of(entity));
 
         service.handleDiagnosisCompleted("so-1");
 
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-1"),
+                eq("cliente@email.com"),
+                eq("12345678900"),
                 argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
                 argThat(list -> list.size() == 1 && list.get(0).getId().equals("s-1")));
     }
@@ -721,9 +729,19 @@ class ServiceOrderServiceTest {
     // ─────────────── generatePaymentForServiceOrder ───────────────
 
     @Test
-    @DisplayName("generatePaymentForServiceOrder deve publicar apenas serviços com situation APROVADO")
+    @DisplayName("generatePaymentForServiceOrder deve publicar apenas serviços com situation APROVADO e dados do customer")
     void generatePaymentForServiceOrder_ShouldPublishOnlyApprovedLabors() {
         ServiceOrder entity = buildEntity("so-2", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+        CustomerDTO customerDTO = new CustomerDTO();
+        customerDTO.setId("cust-2");
+        entity.setCustomer(customerDTO);
+
+        CustomerDTO enrichedCustomer = new CustomerDTO();
+        enrichedCustomer.setId("cust-2");
+        enrichedCustomer.setEmail("cliente2@email.com");
+        enrichedCustomer.setCpf("99988877766");
+        when(customerAndMecnichalService.getCustomer("cust-2")).thenReturn(enrichedCustomer);
 
         LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l-1").situation(LaborSituation.APROVADO).build();
         LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l-2").situation(LaborSituation.REJEITADO).build();
@@ -735,6 +753,8 @@ class ServiceOrderServiceTest {
 
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-2"),
+                eq("cliente2@email.com"),
+                eq("99988877766"),
                 argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
                 argThat(List::isEmpty));
     }
