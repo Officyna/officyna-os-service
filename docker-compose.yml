@@ -1,0 +1,176 @@
+services:
+
+  mongodb:
+    image: mongo:7
+    container_name: officyna-os-service-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: officyna
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./db-seed:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: officyna-os-service-mongo-express
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin
+    ports:
+      - "127.0.0.1:8084:8081"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: officyna-os-service-app
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      # Server
+      SERVER_PORT: 8080
+      # Database
+      MONGODB_URI: mongodb://mongodb:27017/officyna
+      # JWT
+      JWT_SECRET: officyna-secret-key-change-in-production-min-256bits
+      JWT_EXPIRATION: 86400000
+      # Spring profile
+      SPRING_PROFILES_ACTIVE: default
+      # Production Service
+      PRODUCTION_SERVICE_URL: ${PRODUCTION_SERVICE_URL:-http://officyna-production-service:8080}
+      # AWS SQS / LocalStack
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS: eventForDiagnostics
+      AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS_DLQ: eventForDiagnosticsDlq
+      AWS_SQS_QUEUE_EVENT_DIAGNOSIS: eventDiagnosis
+      AWS_SQS_QUEUE_EVENT_DIAGNOSIS_DLQ: eventDiagnosisDlq
+      AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED: eventDiagnosisCompleted
+      AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED_DLQ: eventDiagnosisCompletedDlq
+      AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT: eventGeneratePayment
+      AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT_DLQ: eventGeneratePaymentDlq
+      AWS_SQS_QUEUE_EVENT_BUGET_GENERATED: eventBugetGenerated
+      AWS_SQS_QUEUE_EVENT_BUGET_GENERATED_DLQ: eventBugetGeneratedDlq
+      AWS_SQS_QUEUE_EVENT_SERVICE_ORDER_RECUSED: eventServiceOrderRecused
+      AWS_SQS_QUEUE_TOPIC_APROVACAO: topicAprovacao
+      AWS_SQS_QUEUE_TOPIC_REJEICAO: topicRejeicao
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: officyna-os-service-localstack
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      - SERVICES=sqs
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./localstack-init:/etc/localstack/init/ready.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "awslocal sqs list-queues || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  sqs-admin:
+    image: pacovk/sqs-admin:latest
+    container_name: officyna-os-service-sqs-admin
+    environment:
+      SQS_ENDPOINT_URL: http://localstack:4566
+      SQS_AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "127.0.0.1:8088:3999"
+    depends_on:
+      localstack:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+  kong:
+    image: kong:3.8
+    container_name: officyna-os-service-kong-gateway
+    restart: on-failure
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_DATABASE: "off"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+      KONG_ADMIN_GUI_URL: http://localhost:8002
+    ports:
+      - "8000:8000"
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8002:8002"
+    networks:
+      - officyna-network
+    volumes:
+      - ./kong.yml:/kong/declarative/kong.yml
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: officyna-sonarqube
+    profiles:
+      - sonar
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+      - sonar_logs:/opt/sonarqube/logs
+    restart: unless-stopped
+    networks:
+      - officyna-network
+
+volumes:
+  mongo_data:
+  sonar_data:
+  sonar_extensions:
+  sonar_logs:
+
+networks:
+  officyna-network:
+    driver: bridge

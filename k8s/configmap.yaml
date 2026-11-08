@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: officyna-configmap
+  labels:
+    app.kubernetes.io/name: officyna-os
+  namespace: officyna
+data:
+  SPRING_PROFILES_ACTIVE: "default"
+  SERVER_PORT: "8080"
+  SERVER_FORWARD_HEADERS_STRATEGY: "framework"
+  JWT_EXPIRATION: "86400000"
+  LOG_LEVEL_APP: "INFO"
+  LOG_LEVEL_SECURITY: "INFO"
+  DATABASE_SEED_ENABLED: "true"
+  PRODUCTION_SERVICE_URL: "http://production-execution-service"
+  AWS_REGION: "us-east-1"
+  AWS_ENDPOINT: ""
+  AWS_SQS_INIT_ENABLED: "true"
+  AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS: "eventForDiagnostics"
+  AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS_DLQ: "eventForDiagnosticsDlq"
+  AWS_SQS_QUEUE_EVENT_DIAGNOSIS: "eventDiagnosis"
+  AWS_SQS_QUEUE_EVENT_DIAGNOSIS_DLQ: "eventDiagnosisDlq"
+  AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED: "eventDiagnosisCompleted"
+  AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED_DLQ: "eventDiagnosisCompletedDlq"
+  AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT: "eventGeneratePayment"
+  AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT_DLQ: "eventGeneratePaymentDlq"
+  AWS_SQS_QUEUE_EVENT_BUGET_GENERATED: "eventBugetGenerated"
+  AWS_SQS_QUEUE_EVENT_BUGET_GENERATED_DLQ: "eventBugetGeneratedDlq"
+  AWS_SQS_QUEUE_EVENT_SERVICE_ORDER_RECUSED: "eventServiceOrderRecused"
+  AWS_SQS_QUEUE_TOPIC_APROVACAO: "topicAprovacao"
+  AWS_SQS_QUEUE_TOPIC_REJEICAO: "topicRejeicao"

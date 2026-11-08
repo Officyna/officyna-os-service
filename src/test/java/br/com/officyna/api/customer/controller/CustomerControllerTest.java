@@ -1,0 +1,146 @@
+package br.com.officyna.api.customer.controller;
+
+import br.com.officyna.api.customer.resources.AddressDTO;
+import br.com.officyna.api.customer.resources.CustomerRequest;
+import br.com.officyna.api.customer.resources.CustomerResponse;
+import br.com.officyna.domain.customer.controller.CustomerControllerAdapter;
+import br.com.officyna.domain.customer.entity.CustomerType;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@ExtendWith(MockitoExtension.class)
+class CustomerControllerTest {
+
+    private MockMvc mockMvc;
+
+    @Mock
+    private CustomerControllerAdapter customerControllerAdapter;
+
+    @InjectMocks
+    private CustomerController customerController;
+
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(customerController).build();
+        objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+    }
+
+    @Test
+    @DisplayName("Deve retornar lista de todos os clientes")
+    void findAll_ShouldReturnOk() throws Exception {
+        var response = createResponse();
+        when(customerControllerAdapter.findAll()).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/customers"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+        verify(customerControllerAdapter, times(1)).findAll();
+    }
+
+    @Test
+    @DisplayName("Deve retornar um cliente por ID")
+    void findById_ShouldReturnCustomer() throws Exception {
+        String id = "123";
+        var response = createResponse();
+        when(customerControllerAdapter.findById(id)).thenReturn(response);
+
+        mockMvc.perform(get("/api/customers/{id}", id))
+                .andExpect(status().isOk());
+
+        verify(customerControllerAdapter, times(1)).findById(id);
+    }
+
+    @Test
+    @DisplayName("Deve retornar um cliente pelo documento")
+    void findByDocument_ShouldReturnCustomer() throws Exception {
+        String document = "123.456.789-09";
+        var response = createResponse();
+        when(customerControllerAdapter.findByDocument(document)).thenReturn(response);
+
+        mockMvc.perform(get("/api/customers/document/{document}", document))
+                .andExpect(status().isOk());
+
+        verify(customerControllerAdapter, times(1)).findByDocument(document);
+    }
+
+    @Test
+    @DisplayName("Deve criar um novo cliente com sucesso")
+    void create_ShouldReturnCreated() throws Exception {
+        var request = createRequest();
+        var response = createResponse();
+        when(customerControllerAdapter.create(any(CustomerRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        verify(customerControllerAdapter, times(1)).create(any(CustomerRequest.class));
+    }
+
+    @Test
+    @DisplayName("Deve atualizar um cliente existente")
+    void update_ShouldReturnOk() throws Exception {
+        String id = "123";
+        var request = createRequest();
+        var response = createResponse();
+        when(customerControllerAdapter.update(eq(id), any(CustomerRequest.class))).thenReturn(response);
+
+        mockMvc.perform(put("/api/customers/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(customerControllerAdapter, times(1)).update(eq(id), any(CustomerRequest.class));
+    }
+
+    @Test
+    @DisplayName("Deve deletar um cliente e retornar No Content")
+    void delete_ShouldReturnNoContent() throws Exception {
+        String id = "123";
+        doNothing().when(customerControllerAdapter).delete(id);
+
+        mockMvc.perform(delete("/api/customers/{id}", id))
+                .andExpect(status().isNoContent());
+
+        verify(customerControllerAdapter, times(1)).delete(id);
+    }
+
+    private CustomerRequest createRequest() {
+        AddressDTO address = new AddressDTO("Rua das Flores", "100", null, "Centro", "SÃ£o Paulo", "SP", "01310-100", "Brasil");
+        return new CustomerRequest("JoÃ£o Silva", "123.456.789-09", CustomerType.INDIVIDUAL, "joao@email.com", "99999-9999", "11", "+55", address);
+    }
+
+    private CustomerResponse createResponse() {
+        AddressDTO address = new AddressDTO("Rua das Flores", "100", null, "Centro", "SÃ£o Paulo", "SP", "01310-100", "Brasil");
+        return new CustomerResponse(
+                "123", "JoÃ£o Silva", "123.456.789-09",
+                CustomerType.INDIVIDUAL, "joao@email.com",
+                "99999-9999", "11", "+55",
+                address, true,
+                LocalDateTime.now());
+    }
+}

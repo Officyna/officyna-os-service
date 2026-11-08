@@ -1,0 +1,72 @@
+spring:
+  jackson:
+    read-unknown-enum-values-as-null: true
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://localhost:27018/officyna}
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+
+jwt:
+  secret: ${JWT_SECRET:officyna-secret-key-change-in-production-min-256bits}
+  #3600000=1hr, 28800000=8hrs, 86400000=24hrs
+
+  expiration: ${JWT_EXPIRATION:86400000}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: alpha
+
+database:
+  seed:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    br.com.officyna: INFO
+    org.springframework.security: INFO
+
+services:
+  production:
+    url: ${PRODUCTION_SERVICE_URL:http://localhost:8082}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  endpoint: ${AWS_ENDPOINT:http://localhost:4566}
+  access-key: ${AWS_ACCESS_KEY_ID:test}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:test}
+  sqs:
+    init:
+      enabled: ${AWS_SQS_INIT_ENABLED:true}
+    listener:
+      enabled: ${AWS_SQS_LISTENER_ENABLED:true}
+      wait-time-seconds: ${AWS_SQS_WAIT_TIME_SECONDS:5}
+      poll-delay-ms: ${AWS_SQS_POLL_DELAY_MS:2000}
+    queues:
+      event-for-diagnostics: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS:eventForDiagnostics}
+      event-for-diagnostics-dlq: ${AWS_SQS_QUEUE_EVENT_FOR_DIAGNOSTICS_DLQ:eventForDiagnosticsDlq}
+      event-diagnosis: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS:eventDiagnosis}
+      event-diagnosis-dlq: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_DLQ:eventDiagnosisDlq}
+      event-diagnosis-completed: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED:eventDiagnosisCompleted}
+      event-diagnosis-completed-dlq: ${AWS_SQS_QUEUE_EVENT_DIAGNOSIS_COMPLETED_DLQ:eventDiagnosisCompletedDlq}
+      event-generate-payment: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT:eventGeneratePayment}
+      event-generate-payment-dlq: ${AWS_SQS_QUEUE_EVENT_GENERATE_PAYMENT_DLQ:eventGeneratePaymentDlq}
+      event-buget-generated: ${AWS_SQS_QUEUE_EVENT_BUGET_GENERATED:eventBugetGenerated}
+      event-buget-generated-dlq: ${AWS_SQS_QUEUE_EVENT_BUGET_GENERATED_DLQ:eventBugetGeneratedDlq}
+      event-service-order-recused: ${AWS_SQS_QUEUE_EVENT_SERVICE_ORDER_RECUSED:eventServiceOrderRecused}
+      topic-aprovacao: ${AWS_SQS_QUEUE_TOPIC_APROVACAO:topicAprovacao}
+      topic-rejeicao: ${AWS_SQS_QUEUE_TOPIC_REJEICAO:topicRejeicao}
+

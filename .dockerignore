@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.vscode
+.mvn
+target
+*.log
+.secrets
+owasp-suppressions.xml
+*.md
+k8s/
+db-seed/
