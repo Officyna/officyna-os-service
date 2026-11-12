@@ -75,6 +75,7 @@ services:
       AWS_SQS_QUEUE_EVENT_SERVICE_ORDER_RECUSED: eventServiceOrderRecused
       AWS_SQS_QUEUE_TOPIC_APROVACAO: topicAprovacao
       AWS_SQS_QUEUE_TOPIC_REJEICAO: topicRejeicao
+      AWS_SNS_TOPIC_SERVICE_ORDER_RECUSED: topicServiceOrderRecused
     ports:
       - "8080:8080"
     healthcheck:

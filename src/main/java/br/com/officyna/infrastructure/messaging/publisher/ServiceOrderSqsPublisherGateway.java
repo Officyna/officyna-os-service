@@ -14,6 +14,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import br.com.officyna.infrastructure.logging.CorrelationConstants;
 import org.slf4j.MDC;
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.CreateTopicRequest;
+import software.amazon.awssdk.services.sns.model.PublishRequest;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
@@ -36,32 +39,45 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublisherGateway {
 
     private final SqsClient sqsClient;
+    private final SnsClient snsClient;
     private final ObjectMapper objectMapper;
     private final String eventForDiagnosticsQueue;
     private final String eventGeneratePaymentQueue;
-    private final String eventServiceOrderRecusedQueue;
+    private final String topicServiceOrderRecused;
     private final Map<String, String> resolvedQueueUrls = new ConcurrentHashMap<>();
+    private volatile String cachedTopicServiceOrderRecusedArn;
 
     public ServiceOrderSqsPublisherGateway(
             SqsClient sqsClient,
             ObjectMapper objectMapper,
             String eventForDiagnosticsQueue,
             String eventGeneratePaymentQueue) {
-        this(sqsClient, objectMapper, eventForDiagnosticsQueue, eventGeneratePaymentQueue, "eventServiceOrderRecused");
+        this(sqsClient, null, objectMapper, eventForDiagnosticsQueue, eventGeneratePaymentQueue, "topicServiceOrderRecused");
+    }
+
+    public ServiceOrderSqsPublisherGateway(
+            SqsClient sqsClient,
+            SnsClient snsClient,
+            ObjectMapper objectMapper,
+            String eventForDiagnosticsQueue,
+            String eventGeneratePaymentQueue) {
+        this(sqsClient, snsClient, objectMapper, eventForDiagnosticsQueue, eventGeneratePaymentQueue, "topicServiceOrderRecused");
     }
 
     @Autowired
     public ServiceOrderSqsPublisherGateway(
             SqsClient sqsClient,
+            @Autowired(required = false) SnsClient snsClient,
             ObjectMapper objectMapper,
             @Value("${aws.sqs.queues.event-for-diagnostics:eventForDiagnostics}") String eventForDiagnosticsQueue,
             @Value("${aws.sqs.queues.event-generate-payment:eventGeneratePayment}") String eventGeneratePaymentQueue,
-            @Value("${aws.sqs.queues.event-service-order-recused:eventServiceOrderRecused}") String eventServiceOrderRecusedQueue) {
+            @Value("${aws.sns.topics.topic-service-order-recused:topicServiceOrderRecused}") String topicServiceOrderRecused) {
         this.sqsClient = sqsClient;
+        this.snsClient = snsClient;
         this.objectMapper = objectMapper;
         this.eventForDiagnosticsQueue = eventForDiagnosticsQueue;
         this.eventGeneratePaymentQueue = eventGeneratePaymentQueue;
-        this.eventServiceOrderRecusedQueue = eventServiceOrderRecusedQueue;
+        this.topicServiceOrderRecused = topicServiceOrderRecused;
     }
 
     @Override
@@ -102,8 +118,8 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
 
     @Override
     public void publishServiceOrderRecused(String serviceOrderId, List<SupplyDetailDTO> supplies) {
-        log.info("Publicando eventServiceOrderRecused para serviceOrderId={} na fila: {}",
-                serviceOrderId, eventServiceOrderRecusedQueue);
+        log.info("Publicando compensação no tópico SNS {} para serviceOrderId={}",
+                topicServiceOrderRecused, serviceOrderId);
         List<ServiceOrderRecusedEventMessage.RecusedSupplyItem> items = (supplies != null)
                 ? supplies.stream()
                         .map(ServiceOrderRecusedEventMessage.RecusedSupplyItem::from)
@@ -114,7 +130,73 @@ public class ServiceOrderSqsPublisherGateway implements ServiceOrderEventPublish
                 .status("RECUSADA")
                 .supplies(items)
                 .build();
-        publishEvent(eventServiceOrderRecusedQueue, payload);
+
+        if (snsClient != null) {
+            publishSnsEvent(resolveTopicArn(), payload);
+        } else {
+            publishEvent(topicServiceOrderRecused, payload);
+        }
+    }
+
+    private void publishSnsEvent(String topicArn, Object payload) {
+        try {
+            String messageBody = objectMapper.writeValueAsString(payload);
+            String correlationId = MDC.get(CorrelationConstants.CORRELATION_ID_KEY);
+            if (correlationId == null || correlationId.isBlank()) {
+                correlationId = UUID.randomUUID().toString();
+            }
+
+            Map<String, software.amazon.awssdk.services.sns.model.MessageAttributeValue> attributes = new HashMap<>();
+            attributes.put(
+                    CorrelationConstants.CORRELATION_ID_HEADER, software.amazon.awssdk.services.sns.model.MessageAttributeValue.builder()
+                            .dataType("String")
+                            .stringValue(correlationId)
+                            .build());
+
+            String authorization = resolveAuthorizationHeader();
+            if (authorization != null && !authorization.isBlank()) {
+                attributes.put(
+                        CorrelationConstants.AUTHORIZATION_HEADER, software.amazon.awssdk.services.sns.model.MessageAttributeValue.builder()
+                                .dataType("String")
+                                .stringValue(authorization)
+                                .build());
+            }
+
+            PublishRequest request = PublishRequest.builder()
+                    .topicArn(topicArn)
+                    .message(messageBody)
+                    .messageAttributes(attributes)
+                    .build();
+
+            snsClient.publish(request);
+            log.info("Mensagem publicada com sucesso no tópico SNS topicArn={}, correlationId={}", topicArn, correlationId);
+        } catch (JsonProcessingException e) {
+            log.error("Erro ao serializar mensagem para tópico SNS {}", topicArn, e);
+            throw new RuntimeException("Erro ao serializar mensagem para tópico SNS " + topicArn, e);
+        } catch (Exception e) {
+            log.error("Erro ao publicar no tópico SNS {}: {}", topicArn, e.getMessage(), e);
+            throw new RuntimeException("Erro ao publicar no tópico SNS " + topicArn, e);
+        }
+    }
+
+    private String resolveTopicArn() {
+        if (cachedTopicServiceOrderRecusedArn != null) {
+            return cachedTopicServiceOrderRecusedArn;
+        }
+        if (topicServiceOrderRecused != null && topicServiceOrderRecused.startsWith("arn:aws:sns:")) {
+            cachedTopicServiceOrderRecusedArn = topicServiceOrderRecused;
+            return cachedTopicServiceOrderRecusedArn;
+        }
+        try {
+            cachedTopicServiceOrderRecusedArn = snsClient.createTopic(
+                    CreateTopicRequest.builder().name(topicServiceOrderRecused).build()
+            ).topicArn();
+            return cachedTopicServiceOrderRecusedArn;
+        } catch (Exception e) {
+            log.warn("Falha ao resolver ARN via createTopic para '{}': {}", topicServiceOrderRecused, e.getMessage());
+            cachedTopicServiceOrderRecusedArn = topicServiceOrderRecused;
+            return cachedTopicServiceOrderRecusedArn;
+        }
     }
 
     public void publishEvent(String targetQueue, Object payload) {

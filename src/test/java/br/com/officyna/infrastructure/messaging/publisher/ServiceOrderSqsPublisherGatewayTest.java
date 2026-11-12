@@ -14,6 +14,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.MDC;
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.model.CreateTopicRequest;
+import software.amazon.awssdk.services.sns.model.CreateTopicResponse;
+import software.amazon.awssdk.services.sns.model.PublishRequest;
+import software.amazon.awssdk.services.sns.model.PublishResponse;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlResponse;
@@ -35,6 +40,9 @@ class ServiceOrderSqsPublisherGatewayTest {
     @Mock
     private SqsClient sqsClient;
 
+    @Mock
+    private SnsClient snsClient;
+
     private ObjectMapper objectMapper;
     private ServiceOrderSqsPublisherGateway gateway;
 
@@ -44,6 +52,7 @@ class ServiceOrderSqsPublisherGatewayTest {
         objectMapper = new ObjectMapper();
         gateway = new ServiceOrderSqsPublisherGateway(
                 sqsClient,
+                snsClient,
                 objectMapper,
                 "eventForDiagnostics",
                 "eventGeneratePayment"
@@ -188,12 +197,12 @@ class ServiceOrderSqsPublisherGatewayTest {
     }
 
     @Test
-    @DisplayName("Deve publicar eventServiceOrderRecused com supplies e sypplyes para compensação SAGA")
+    @DisplayName("Deve publicar no tópico SNS topicServiceOrderRecused com supplies e sypplyes para compensação SAGA")
     void publishServiceOrderRecused_ShouldPublishCompensationEvent() {
-        when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
-                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/eventServiceOrderRecused").build());
-        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
-                .thenReturn(SendMessageResponse.builder().messageId("msg-rec-1").build());
+        when(snsClient.createTopic(any(CreateTopicRequest.class)))
+                .thenReturn(CreateTopicResponse.builder().topicArn("arn:aws:sns:us-east-1:000000000000:topicServiceOrderRecused").build());
+        when(snsClient.publish(any(PublishRequest.class)))
+                .thenReturn(PublishResponse.builder().messageId("msg-rec-1").build());
 
         List<SupplyDetailDTO> supplies = List.of(
                 SupplyDetailDTO.builder()
@@ -206,14 +215,35 @@ class ServiceOrderSqsPublisherGatewayTest {
 
         gateway.publishServiceOrderRecused("so-999", supplies);
 
-        ArgumentCaptor<SendMessageRequest> captor = ArgumentCaptor.forClass(SendMessageRequest.class);
-        verify(sqsClient).sendMessage(captor.capture());
+        ArgumentCaptor<PublishRequest> captor = ArgumentCaptor.forClass(PublishRequest.class);
+        verify(snsClient).publish(captor.capture());
 
-        SendMessageRequest request = captor.getValue();
-        assertThat(request.queueUrl()).isEqualTo("http://localhost:4566/000000000000/eventServiceOrderRecused");
-        assertThat(request.messageBody()).contains("\"serviceOrderId\":\"so-999\"");
-        assertThat(request.messageBody()).contains("\"supplieId\":\"sup-123\"");
-        assertThat(request.messageBody()).contains("\"quantity\":10");
-        assertThat(request.messageBody()).contains("\"sypplyes\"");
+        PublishRequest request = captor.getValue();
+        assertThat(request.topicArn()).isEqualTo("arn:aws:sns:us-east-1:000000000000:topicServiceOrderRecused");
+        assertThat(request.message()).contains("\"serviceOrderId\":\"so-999\"");
+        assertThat(request.message()).contains("\"supplieId\":\"sup-123\"");
+        assertThat(request.message()).contains("\"quantity\":10");
+        assertThat(request.message()).contains("\"sypplyes\"");
+        assertThat(request.messageAttributes()).containsKey("correlationId");
+    }
+
+    @Test
+    @DisplayName("Deve fazer fallback para SQS quando snsClient for nulo")
+    void publishServiceOrderRecused_ShouldFallbackToSqs_WhenSnsClientIsNull() {
+        ServiceOrderSqsPublisherGateway sqsGateway = new ServiceOrderSqsPublisherGateway(
+                sqsClient,
+                null,
+                objectMapper,
+                "eventForDiagnostics",
+                "eventGeneratePayment"
+        );
+        when(sqsClient.getQueueUrl(any(GetQueueUrlRequest.class)))
+                .thenReturn(GetQueueUrlResponse.builder().queueUrl("http://localhost:4566/000000000000/topicServiceOrderRecused").build());
+        when(sqsClient.sendMessage(any(SendMessageRequest.class)))
+                .thenReturn(SendMessageResponse.builder().messageId("msg-rec-2").build());
+
+        sqsGateway.publishServiceOrderRecused("so-888", List.of());
+
+        verify(sqsClient).sendMessage(any(SendMessageRequest.class));
     }
 }
