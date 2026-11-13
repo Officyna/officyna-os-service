@@ -395,6 +395,10 @@ public class ServiceOrderService {
 
                 ServiceOrder saved = this.save(entity);
 
+                if (!ServiceOrderStatus.RECUSADA.equals(previousStatus) && ServiceOrderStatus.RECUSADA.equals(status)) {
+                        publishServiceOrderRecused(saved);
+                }
+
                 log.info(
                                 "Service order status updated successfully. Id: {}, Status: {}",
                                 id,
@@ -608,6 +612,9 @@ public class ServiceOrderService {
                 }
 
                 ServiceOrder saved = this.save(entity);
+                if (!ServiceOrderStatus.RECUSADA.equals(previousStatus)) {
+                        publishServiceOrderRecused(saved);
+                }
                 log.info("Notificando cliente: Ordem de serviço {} atualizada para RECUSADA (statusPayment={})",
                                 id, entity.getStatusPayment());
                 return saved;

@@ -874,7 +874,7 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("handlePaymentRejection deve atualizar statusPayment, description e status para RECUSADA")
+    @DisplayName("handlePaymentRejection deve atualizar statusPayment, description e status para RECUSADA e publicar evento")
     void handlePaymentRejection_ShouldUpdatePaymentStatusAndOrderStatus() {
         ServiceOrder entity = buildEntity("so-rej-1", ServiceOrderStatus.AGUARDANDO_APROVACAO);
         when(repository.findById("so-rej-1")).thenReturn(Optional.of(entity));
@@ -886,5 +886,20 @@ class ServiceOrderServiceTest {
         assertThat(result.getStatusPayment()).isEqualTo("RECUSED");
         assertThat(result.getPaymentDescription()).isEqualTo("Cartão recusado");
         verify(repository).save(entity);
+        verify(eventPublisherGateway).publishServiceOrderRecused(eq("so-rej-1"), any());
+    }
+
+    @Test
+    @DisplayName("updateStatus deve publicar evento de recusa quando status mudar para RECUSADA")
+    void updateStatus_ShouldPublishRecusedEvent_WhenStatusChangesToRecused() {
+        ServiceOrder entity = buildEntity("so-update-recused", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findById("so-update-recused")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.updateStatus("so-update-recused", ServiceOrderStatus.RECUSADA);
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.RECUSADA);
+        verify(repository).save(entity);
+        verify(eventPublisherGateway).publishServiceOrderRecused(eq("so-update-recused"), any());
     }
 }
