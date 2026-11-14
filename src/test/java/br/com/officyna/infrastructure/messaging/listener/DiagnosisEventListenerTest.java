@@ -94,7 +94,9 @@ class DiagnosisEventListenerTest {
                 verify(sqsClient).sendMessage(argThat((SendMessageRequest req) -> req.queueUrl()
                                 .equals("http://localhost:4566/eventDiagnosisDlq")
                                 && req.messageBody().equals(json)));
-                verify(sqsClient, never()).deleteMessage(any(DeleteMessageRequest.class));
+                verify(sqsClient).deleteMessage(argThat((DeleteMessageRequest req) -> req.queueUrl()
+                                .equals("http://localhost:4566/eventDiagnosis")
+                                && req.receiptHandle().equals("receipt-msg-dlq")));
         }
 
         @Test

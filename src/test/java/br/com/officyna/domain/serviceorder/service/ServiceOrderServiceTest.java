@@ -812,6 +812,33 @@ class ServiceOrderServiceTest {
     }
 
     @Test
+    @DisplayName("applyBudget quando O.S já está APROVADA (evento fora de ordem) deve manter status APROVADA e atualizar payment")
+    void applyBudget_WhenAlreadyAprovada_ShouldKeepStatusAndUpdatePayment() {
+        ServiceOrder entity = buildEntity("so-budget-aprov", ServiceOrderStatus.APROVADA);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-budget-aprov")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-aprov",
+                new BigDecimal("0.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("14.32"),
+                new BigDecimal("133.66"),
+                "https://mercadopago.com/link-123",
+                "pix-qr",
+                "pix-qr-base64");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.APROVADA);
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        assertThat(result.getPayment().getQrCode()).isEqualTo("pix-qr");
+        assertThat(result.getPayment().getQrCodeBase64()).isEqualTo("pix-qr-base64");
+        verify(repository).save(entity);
+    }
+
+    @Test
     @DisplayName("applyBudget deve salvar totalLaborsAmount, totalSupplyAmount, totalTaxesAmount, totalBudgetAmount e objeto payment")
     void applyBudget_WithTaxesAndPaymentObject_ShouldPersistAllFields() {
         ServiceOrder entity = buildEntity("so-budget-full", ServiceOrderStatus.EM_DIAGNOSTICO);

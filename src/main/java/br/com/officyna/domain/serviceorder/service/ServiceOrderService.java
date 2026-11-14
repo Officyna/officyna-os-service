@@ -691,8 +691,7 @@ public class ServiceOrderService {
                         entity.setPaymentLink(paymentLink);
                 }
 
-                if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)
-                                && !ServiceOrderStatus.PENDENT_PAGAMENTO.equals(previousStatus)) {
+                if (ServiceOrderStatus.EM_DIAGNOSTICO.equals(previousStatus)) {
                         entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
 
                         logStatusChange(
