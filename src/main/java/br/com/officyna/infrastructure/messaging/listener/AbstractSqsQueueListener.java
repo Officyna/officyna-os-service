@@ -103,14 +103,14 @@ public abstract class AbstractSqsQueueListener<T> {
         } catch (Exception e) {
             log.error("Falha ao processar mensagem id={} da fila {}. Conteúdo: {}",
                     msg.messageId(), queueName, msg.body(), e);
-            publishToDlq(msg, correlationId, authorization);
+            publishToDlq(queueUrl, msg, correlationId, authorization);
         } finally {
             MDC.remove(CorrelationConstants.CORRELATION_ID_KEY);
             MDC.remove(CorrelationConstants.AUTHORIZATION_KEY);
         }
     }
 
-    protected void publishToDlq(Message msg, String correlationId, String authorization) {
+    protected void publishToDlq(String queueUrl, Message msg, String correlationId, String authorization) {
         if (dlqQueueName == null || dlqQueueName.isBlank()) {
             return;
         }
@@ -140,6 +140,15 @@ public abstract class AbstractSqsQueueListener<T> {
                     .build());
             log.info("Mensagem id={} enviada para DLQ {} com correlationId={}",
                     msg.messageId(), dlqQueueName, correlationId);
+
+            if (queueUrl != null && !queueUrl.isBlank()) {
+                sqsClient.deleteMessage(DeleteMessageRequest.builder()
+                        .queueUrl(queueUrl)
+                        .receiptHandle(msg.receiptHandle())
+                        .build());
+                log.info("Mensagem id={} removida da fila principal {} após envio para DLQ {}",
+                        msg.messageId(), queueName, dlqQueueName);
+            }
         } catch (Exception dlqEx) {
             log.error("Falha ao publicar mensagem id={} na DLQ {}: {}",
                     msg.messageId(), dlqQueueName, dlqEx.getMessage(), dlqEx);

@@ -31,6 +31,7 @@ create_queue_with_dlq "eventBugetGenerated"
 awslocal sqs create-queue --queue-name eventServiceOrderRecused
 awslocal sqs create-queue --queue-name topicAprovacao
 awslocal sqs create-queue --queue-name topicRejeicao
+awslocal sns create-topic --name topicServiceOrderRecused
 
 echo "LocalStack SQS Queues created successfully:"
 awslocal sqs list-queues

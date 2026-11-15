@@ -57,7 +57,11 @@ public class ServiceOrderDocument {
 
     private String informationText;
 
+    private BigDecimal totalTaxesAmount;
+
     private BigDecimal totalBudgetAmount;
+
+    private PaymentDTO payment;
 
     private String paymentLink;
 

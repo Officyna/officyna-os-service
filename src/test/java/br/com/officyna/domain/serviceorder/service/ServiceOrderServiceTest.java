@@ -708,12 +708,23 @@ class ServiceOrderServiceTest {
         SupplyDetailDTO supply = SupplyDetailDTO.builder().id("s-1").name("Filtro").build();
         entity.setSupplys(new SupplyDTO(List.of(supply), new BigDecimal("50.00")));
 
+        CustomerDTO customerDTO = new CustomerDTO();
+        customerDTO.setId("cust-1");
+        customerDTO.setEmail("cliente@email.com");
+        customerDTO.setCpf("12345678900");
+        entity.setCustomer(customerDTO);
+
         when(repository.findById("so-1")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
 
         service.handleDiagnosisCompleted("so-1");
 
+        assertThat(entity.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        verify(repository).save(entity);
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-1"),
+                eq("cliente@email.com"),
+                eq("12345678900"),
                 argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
                 argThat(list -> list.size() == 1 && list.get(0).getId().equals("s-1")));
     }
@@ -721,9 +732,19 @@ class ServiceOrderServiceTest {
     // ─────────────── generatePaymentForServiceOrder ───────────────
 
     @Test
-    @DisplayName("generatePaymentForServiceOrder deve publicar apenas serviços com situation APROVADO")
+    @DisplayName("generatePaymentForServiceOrder deve publicar apenas serviços com situation APROVADO e dados do customer")
     void generatePaymentForServiceOrder_ShouldPublishOnlyApprovedLabors() {
         ServiceOrder entity = buildEntity("so-2", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+        CustomerDTO customerDTO = new CustomerDTO();
+        customerDTO.setId("cust-2");
+        entity.setCustomer(customerDTO);
+
+        CustomerDTO enrichedCustomer = new CustomerDTO();
+        enrichedCustomer.setId("cust-2");
+        enrichedCustomer.setEmail("cliente2@email.com");
+        enrichedCustomer.setCpf("99988877766");
+        when(customerAndMecnichalService.getCustomer("cust-2")).thenReturn(enrichedCustomer);
 
         LaborDetailDTO labor1 = LaborDetailDTO.builder().laborId("l-1").situation(LaborSituation.APROVADO).build();
         LaborDetailDTO labor2 = LaborDetailDTO.builder().laborId("l-2").situation(LaborSituation.REJEITADO).build();
@@ -735,6 +756,8 @@ class ServiceOrderServiceTest {
 
         verify(eventPublisherGateway).publishGeneratePayment(
                 eq("so-2"),
+                eq("cliente2@email.com"),
+                eq("99988877766"),
                 argThat(list -> list.size() == 1 && list.get(0).getLaborId().equals("l-1")),
                 argThat(List::isEmpty));
     }
@@ -760,6 +783,88 @@ class ServiceOrderServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
         assertThat(result.getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        verify(repository).save(entity);
+    }
+
+    @Test
+    @DisplayName("applyBudget quando O.S está em PENDENT_PAGAMENTO deve manter status PENDENT_PAGAMENTO e atualizar payment")
+    void applyBudget_WhenInPendentPagamento_ShouldKeepStatusAndUpdatePayment() {
+        ServiceOrder entity = buildEntity("so-budget-pend", ServiceOrderStatus.PENDENT_PAGAMENTO);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-budget-pend")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-pend",
+                new BigDecimal("150.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("21.82"),
+                new BigDecimal("291.16"),
+                "https://mercadopago.com/link-123",
+                "pix-qr",
+                "pix-qr-base64");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.PENDENT_PAGAMENTO);
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        verify(repository).save(entity);
+    }
+
+    @Test
+    @DisplayName("applyBudget quando O.S já está APROVADA (evento fora de ordem) deve manter status APROVADA e atualizar payment")
+    void applyBudget_WhenAlreadyAprovada_ShouldKeepStatusAndUpdatePayment() {
+        ServiceOrder entity = buildEntity("so-budget-aprov", ServiceOrderStatus.APROVADA);
+        entity.setLabors(new LaborsDTO(new ArrayList<>(), BigDecimal.ZERO));
+        entity.setSupplys(new SupplyDTO(new ArrayList<>(), BigDecimal.ZERO));
+
+        when(repository.findById("so-budget-aprov")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-aprov",
+                new BigDecimal("0.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("14.32"),
+                new BigDecimal("133.66"),
+                "https://mercadopago.com/link-123",
+                "pix-qr",
+                "pix-qr-base64");
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.APROVADA);
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://mercadopago.com/link-123");
+        assertThat(result.getPayment().getQrCode()).isEqualTo("pix-qr");
+        assertThat(result.getPayment().getQrCodeBase64()).isEqualTo("pix-qr-base64");
+        verify(repository).save(entity);
+    }
+
+    @Test
+    @DisplayName("applyBudget deve salvar totalLaborsAmount, totalSupplyAmount, totalTaxesAmount, totalBudgetAmount e objeto payment")
+    void applyBudget_WithTaxesAndPaymentObject_ShouldPersistAllFields() {
+        ServiceOrder entity = buildEntity("so-budget-full", ServiceOrderStatus.EM_DIAGNOSTICO);
+        when(repository.findById("so-budget-full")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.applyBudget(
+                "so-budget-full",
+                new BigDecimal("150.00"),
+                new BigDecimal("119.34"),
+                new BigDecimal("21.82"),
+                new BigDecimal("291.16"),
+                "https://pay.officyna.com/link",
+                "00020126580014BR.GOV.BCB.PIX",
+                "base64-qr-code"
+        );
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        assertThat(result.getLabors().getTotalLaborsAmount()).isEqualByComparingTo("150.00");
+        assertThat(result.getSupplys().getTotalSupplyAmount()).isEqualByComparingTo("119.34");
+        assertThat(result.getTotalTaxesAmount()).isEqualByComparingTo("21.82");
+        assertThat(result.getTotalBudgetAmount()).isEqualByComparingTo("291.16");
+        assertThat(result.getPayment()).isNotNull();
+        assertThat(result.getPayment().getPaymentLink()).isEqualTo("https://pay.officyna.com/link");
+        assertThat(result.getPayment().getQrCode()).isEqualTo("00020126580014BR.GOV.BCB.PIX");
+        assertThat(result.getPayment().getQrCodeBase64()).isEqualTo("base64-qr-code");
         verify(repository).save(entity);
     }
 
@@ -796,7 +901,7 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("handlePaymentRejection deve atualizar statusPayment, description e status para RECUSADA")
+    @DisplayName("handlePaymentRejection deve atualizar statusPayment, description e status para RECUSADA e publicar evento")
     void handlePaymentRejection_ShouldUpdatePaymentStatusAndOrderStatus() {
         ServiceOrder entity = buildEntity("so-rej-1", ServiceOrderStatus.AGUARDANDO_APROVACAO);
         when(repository.findById("so-rej-1")).thenReturn(Optional.of(entity));
@@ -808,5 +913,20 @@ class ServiceOrderServiceTest {
         assertThat(result.getStatusPayment()).isEqualTo("RECUSED");
         assertThat(result.getPaymentDescription()).isEqualTo("Cartão recusado");
         verify(repository).save(entity);
+        verify(eventPublisherGateway).publishServiceOrderRecused(eq("so-rej-1"), any());
+    }
+
+    @Test
+    @DisplayName("updateStatus deve publicar evento de recusa quando status mudar para RECUSADA")
+    void updateStatus_ShouldPublishRecusedEvent_WhenStatusChangesToRecused() {
+        ServiceOrder entity = buildEntity("so-update-recused", ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        when(repository.findById("so-update-recused")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenReturn(entity);
+
+        ServiceOrder result = service.updateStatus("so-update-recused", ServiceOrderStatus.RECUSADA);
+
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.RECUSADA);
+        verify(repository).save(entity);
+        verify(eventPublisherGateway).publishServiceOrderRecused(eq("so-update-recused"), any());
     }
 }

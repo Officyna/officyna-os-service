@@ -119,12 +119,14 @@ class CustomerServiceOrderServiceTest {
         ServiceOrder result = service.updateLaborSituation(orderId, request);
 
         assertThat(result).isSameAs(entity);
-        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+        assertThat(result.getStatus()).isEqualTo(ServiceOrderStatus.PENDENT_PAGAMENTO);
         assertThat(labor1.getSituation()).isEqualTo(LaborSituation.APROVADO);
         assertThat(labor1.getSituationDate()).isNotNull();
         assertThat(labor2.getSituation()).isEqualTo(LaborSituation.REJEITADO);
         assertThat(labor2.getSituationDate()).isNotNull();
 
+        verify(serviceOrderService).logStatusChange(entity, ServiceOrderStatus.AGUARDANDO_APROVACAO,
+                ServiceOrderStatus.PENDENT_PAGAMENTO);
         verify(serviceOrderService).save(entity);
         verify(serviceOrderService).generatePaymentForServiceOrder(orderId);
     }

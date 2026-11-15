@@ -11,7 +11,8 @@ public enum ServiceOrderStatus {
     FINALIZADA(5, "Finalizada"),
     APROVADA(6, "Aprovada"),
     ENTREGUE(7,"Entregue"),
-    RECUSADA(8, "Recusada");
+    RECUSADA(8, "Recusada"),
+    PENDENT_PAGAMENTO(9, "Pendente pagamento");
 
     private final Integer idStatus;
 
@@ -35,9 +36,10 @@ public enum ServiceOrderStatus {
         return switch (this) {
             case EM_EXECUCAO -> 1;
             case AGUARDANDO_APROVACAO -> 2;
-            case APROVADA -> 3;
-            case EM_DIAGNOSTICO -> 4;
-            case RECEBIDA -> 5;
+            case PENDENT_PAGAMENTO -> 3;
+            case APROVADA -> 4;
+            case EM_DIAGNOSTICO -> 5;
+            case RECEBIDA -> 6;
             default -> Integer.MAX_VALUE;
         };
     }

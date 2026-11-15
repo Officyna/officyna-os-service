@@ -39,10 +39,19 @@ public class ApprovalTopicListener extends AbstractSqsQueueListener<ApprovalEven
                 message.getServiceOrderId(), message.getStatusPayment());
 
         String statusPayment = message.getStatusPayment();
-        if (statusPayment == null || "APROVED".equalsIgnoreCase(statusPayment) || "APROVADO".equalsIgnoreCase(statusPayment)) {
+        if (statusPayment == null
+                || "PAID".equalsIgnoreCase(statusPayment)
+                || "APPROVED".equalsIgnoreCase(statusPayment)
+                || "APROVED".equalsIgnoreCase(statusPayment)
+                || "APROVADO".equalsIgnoreCase(statusPayment)) {
             serviceOrderService.updateStatus(message.getServiceOrderId(), ServiceOrderStatus.APROVADA);
             log.info("Status da ordem de serviço {} atualizado para APROVADA", message.getServiceOrderId());
-        } else if ("RECUSED".equalsIgnoreCase(statusPayment) || "RECUSADO".equalsIgnoreCase(statusPayment)) {
+        } else if ("RECUSED".equalsIgnoreCase(statusPayment)
+                || "RECUSADO".equalsIgnoreCase(statusPayment)
+                || "REJECTED".equalsIgnoreCase(statusPayment)
+                || "CANCELED".equalsIgnoreCase(statusPayment)
+                || "CANCELLED".equalsIgnoreCase(statusPayment)
+                || "REFUNDED".equalsIgnoreCase(statusPayment)) {
             serviceOrderService.updateStatus(message.getServiceOrderId(), ServiceOrderStatus.RECUSADA);
             log.info("Status da ordem de serviço {} atualizado para RECUSADA", message.getServiceOrderId());
         } else {

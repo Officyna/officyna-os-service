@@ -26,7 +26,9 @@ public class ServiceOrderPresenter {
                 entity.getInformationText(),
                 entity.getStatus().getStatusName(),
                 this.getStatusDateByLastStatus(entity),
+                this.formatMoney(entity.getTotalTaxesAmount()),
                 this.formatMoney(entity.getTotalBudgetAmount()),
+                entity.getPayment(),
                 this.formatLocalDateTime(entity.getCreatedAt())
         );
     }
@@ -37,7 +39,7 @@ public class ServiceOrderPresenter {
             case RECEBIDA -> statusDate = entity.getRegistrationDate();
             case EM_DIAGNOSTICO -> statusDate = entity.getDiagnosisStartDate();
             case AGUARDANDO_APROVACAO -> statusDate = entity.getClientSendDate();
-            case APROVADA -> statusDate = entity.getApprovalDate();
+            case PENDENT_PAGAMENTO, APROVADA -> statusDate = entity.getApprovalDate();
             case EM_EXECUCAO -> statusDate = entity.getExecutionStartDate();
             case ENTREGUE -> statusDate = entity.getDeliveryDate();
             case FINALIZADA -> statusDate = entity.getFinalizationDate();
@@ -55,6 +57,9 @@ public class ServiceOrderPresenter {
     }
 
     private String formatMoney(BigDecimal value) {
+        if (value == null) {
+            return String.format(PT_BR, "R$ %.2f", BigDecimal.ZERO);
+        }
         return String.format(PT_BR, "R$ %.2f", value);
     }
 }

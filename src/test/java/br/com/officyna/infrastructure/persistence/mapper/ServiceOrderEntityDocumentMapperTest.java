@@ -43,7 +43,7 @@ class ServiceOrderEntityDocumentMapperTest {
 
         ServiceOrder entity = ServiceOrder.builder()
                 .id("so-123")
-                    .serviceOrderNumber(1L)
+                .serviceOrderNumber(1L)
                 .vehicle(vehicle)
                 .customer(customer)
                 .mechanic(mechanic)
@@ -59,7 +59,9 @@ class ServiceOrderEntityDocumentMapperTest {
                 .refuseDate(null)
                 .status(ServiceOrderStatus.RECEBIDA)
                 .informationText("Some information")
+                .totalTaxesAmount(new BigDecimal("21.82"))
                 .totalBudgetAmount(new BigDecimal("150.00"))
+                .payment(new PaymentDTO("http://link", "qr", "qr64"))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -84,7 +86,9 @@ class ServiceOrderEntityDocumentMapperTest {
         assertEquals(entity.getRefuseDate(), document.getRefuseDate());
         assertEquals(entity.getStatus().name(), document.getStatus());
         assertEquals(entity.getInformationText(), document.getInformationText());
+        assertEquals(entity.getTotalTaxesAmount(), document.getTotalTaxesAmount());
         assertEquals(entity.getTotalBudgetAmount(), document.getTotalBudgetAmount());
+        assertEquals(entity.getPayment(), document.getPayment());
         assertEquals(entity.getCreatedAt(), document.getCreatedAt());
         assertEquals(entity.getUpdatedAt(), document.getUpdatedAt());
     }
@@ -139,7 +143,9 @@ class ServiceOrderEntityDocumentMapperTest {
                 .refuseDate(null)
                 .status(ServiceOrderStatus.RECEBIDA.name())
                 .informationText("Some information")
+                .totalTaxesAmount(new BigDecimal("21.82"))
                 .totalBudgetAmount(new BigDecimal("150.00"))
+                .payment(new PaymentDTO("http://link", "qr", "qr64"))
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -164,7 +170,9 @@ class ServiceOrderEntityDocumentMapperTest {
         assertEquals(document.getRefuseDate(), entity.getRefuseDate());
         assertEquals(ServiceOrderStatus.valueOf(document.getStatus()), entity.getStatus());
         assertEquals(document.getInformationText(), entity.getInformationText());
+        assertEquals(document.getTotalTaxesAmount(), entity.getTotalTaxesAmount());
         assertEquals(document.getTotalBudgetAmount(), entity.getTotalBudgetAmount());
+        assertEquals(document.getPayment(), entity.getPayment());
         assertEquals(document.getCreatedAt(), entity.getCreatedAt());
         assertEquals(document.getUpdatedAt(), entity.getUpdatedAt());
     }

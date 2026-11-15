@@ -97,6 +97,7 @@ public class ServiceOrderService {
                 return ordersServiceEntity.stream()
                                 .filter(order -> order.getStatus() == ServiceOrderStatus.EM_EXECUCAO
                                                 || order.getStatus() == ServiceOrderStatus.AGUARDANDO_APROVACAO
+                                                || order.getStatus() == ServiceOrderStatus.PENDENT_PAGAMENTO
                                                 || order.getStatus() == ServiceOrderStatus.APROVADA
                                                 || order.getStatus() == ServiceOrderStatus.EM_DIAGNOSTICO
                                                 || order.getStatus() == ServiceOrderStatus.RECEBIDA)
@@ -394,6 +395,10 @@ public class ServiceOrderService {
 
                 ServiceOrder saved = this.save(entity);
 
+                if (!ServiceOrderStatus.RECUSADA.equals(previousStatus) && ServiceOrderStatus.RECUSADA.equals(status)) {
+                        publishServiceOrderRecused(saved);
+                }
+
                 log.info(
                                 "Service order status updated successfully. Id: {}, Status: {}",
                                 id,
@@ -450,6 +455,16 @@ public class ServiceOrderService {
                 log.info("Processando evento eventDiagnosisCompleted para ordem de serviço: {}", serviceOrderId);
                 ServiceOrder entity = this.findEntityById(serviceOrderId);
 
+                ServiceOrderStatus previousStatus = entity.getStatus();
+                if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
+                        entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+                        logStatusChange(
+                                        entity,
+                                        previousStatus,
+                                        ServiceOrderStatus.AGUARDANDO_APROVACAO);
+                        this.save(entity);
+                }
+
                 List<LaborDetailDTO> labors = (entity.getLabors() != null
                                 && entity.getLabors().getLaborsDetails() != null)
                                                 ? entity.getLabors().getLaborsDetails().stream()
@@ -463,7 +478,16 @@ public class ServiceOrderService {
                                                 ? entity.getSupplys().getSupplysDetails()
                                                 : List.of();
 
-                eventPublisherGateway.publishGeneratePayment(serviceOrderId, labors, supplies);
+                CustomerDTO customer = resolvePaymentCustomer(entity);
+                String payerEmail = customer != null ? customer.getEmail() : null;
+                String customerDocument = customer != null ? customer.getCpf() : null;
+
+                eventPublisherGateway.publishGeneratePayment(
+                                serviceOrderId,
+                                payerEmail,
+                                customerDocument,
+                                labors,
+                                supplies);
 
                 log.info("eventGeneratePayment publicado com sucesso para ordem de serviço: {}", serviceOrderId);
         }
@@ -485,10 +509,50 @@ public class ServiceOrderService {
                                                 ? entity.getSupplys().getSupplysDetails()
                                                 : List.of();
 
-                eventPublisherGateway.publishGeneratePayment(serviceOrderId, approvedLabors, supplies);
+                CustomerDTO customer = resolvePaymentCustomer(entity);
+                String payerEmail = customer != null ? customer.getEmail() : null;
+                String customerDocument = customer != null ? customer.getCpf() : null;
+
+                eventPublisherGateway.publishGeneratePayment(
+                                serviceOrderId,
+                                payerEmail,
+                                customerDocument,
+                                approvedLabors,
+                                supplies);
 
                 log.info("eventGeneratePayment pós-aprovação publicado com sucesso para ordem de serviço: {}",
                                 serviceOrderId);
+        }
+
+        private CustomerDTO resolvePaymentCustomer(ServiceOrder entity) {
+                if (entity.getCustomer() == null) {
+                        return null;
+                }
+                CustomerDTO current = entity.getCustomer();
+                String email = current.getEmail();
+                String cpf = current.getCpf();
+
+                if ((email == null || cpf == null)
+                                && current.getId() != null
+                                && !current.getId().isBlank()) {
+                        try {
+                                CustomerDTO enriched = customerAndMecnichalService
+                                                .getCustomer(current.getId());
+                                if (enriched != null) {
+                                        if (email == null) {
+                                                current.setEmail(enriched.getEmail());
+                                        }
+                                        if (cpf == null) {
+                                                current.setCpf(enriched.getCpf());
+                                        }
+                                }
+                        } catch (Exception e) {
+                                log.warn("Não foi possível enriquecer dados de email/cpf do cliente id={}: {}",
+                                                current.getId(), e.getMessage());
+                        }
+                }
+
+                return current;
         }
 
         public void publishServiceOrderRecused(ServiceOrder entity) {
@@ -548,6 +612,9 @@ public class ServiceOrderService {
                 }
 
                 ServiceOrder saved = this.save(entity);
+                if (!ServiceOrderStatus.RECUSADA.equals(previousStatus)) {
+                        publishServiceOrderRecused(saved);
+                }
                 log.info("Notificando cliente: Ordem de serviço {} atualizada para RECUSADA (statusPayment={})",
                                 id, entity.getStatusPayment());
                 return saved;
@@ -558,62 +625,90 @@ public class ServiceOrderService {
                         BigDecimal totalLaborAmount,
                         BigDecimal totalSupplyAmount,
                         BigDecimal totalBudgetAmount) {
-                return applyBudget(id, totalLaborAmount, totalSupplyAmount, totalBudgetAmount, null);
+                return applyBudget(id, totalLaborAmount, totalSupplyAmount, null, totalBudgetAmount, null, null, null);
         }
 
-    public ServiceOrder applyBudget(
-            String id,
-            BigDecimal totalLaborAmount,
-            BigDecimal totalSupplyAmount,
-            BigDecimal totalBudgetAmount,
-            String paymentLink) {
-
-        log.info(
-                "Applying budget to service order id: {}, totalBudgetAmount: {}, paymentLink: {}",
-                id,
-                totalBudgetAmount,
-                paymentLink
-        );
-
-        ServiceOrder entity = this.findEntityById(id);
-        ServiceOrderStatus previousStatus = entity.getStatus();
-
-        if (totalBudgetAmount != null) {
-            entity.setTotalBudgetAmount(totalBudgetAmount);
+        public ServiceOrder applyBudget(
+                        String id,
+                        BigDecimal totalLaborAmount,
+                        BigDecimal totalSupplyAmount,
+                        BigDecimal totalBudgetAmount,
+                        String paymentLink) {
+                return applyBudget(id, totalLaborAmount, totalSupplyAmount, null, totalBudgetAmount, paymentLink, null, null);
         }
 
-        if (entity.getLabors() != null && totalLaborAmount != null) {
-            entity.getLabors().setTotalLaborsAmount(totalLaborAmount);
+        public ServiceOrder applyBudget(
+                        String id,
+                        BigDecimal totalLaborAmount,
+                        BigDecimal totalSupplyAmount,
+                        BigDecimal totalTaxesAmount,
+                        BigDecimal totalBudgetAmount,
+                        String paymentLink,
+                        String qrCode,
+                        String qrCodeBase64) {
+
+                log.info(
+                                "Applying budget to service order id: {}, totalTaxesAmount: {}, totalBudgetAmount: {}, paymentLink: {}",
+                                id,
+                                totalTaxesAmount,
+                                totalBudgetAmount,
+                                paymentLink);
+
+                ServiceOrder entity = this.findEntityById(id);
+                ServiceOrderStatus previousStatus = entity.getStatus();
+
+                if (totalTaxesAmount != null) {
+                        entity.setTotalTaxesAmount(totalTaxesAmount);
+                }
+
+                if (totalBudgetAmount != null) {
+                        entity.setTotalBudgetAmount(totalBudgetAmount);
+                }
+
+                if (totalLaborAmount != null) {
+                        if (entity.getLabors() == null) {
+                                entity.setLabors(new LaborsDTO(new ArrayList<>(), totalLaborAmount));
+                        } else {
+                                entity.getLabors().setTotalLaborsAmount(totalLaborAmount);
+                        }
+                }
+
+                if (totalSupplyAmount != null) {
+                        if (entity.getSupplys() == null) {
+                                entity.setSupplys(new SupplyDTO(new ArrayList<>(), totalSupplyAmount));
+                        } else {
+                                entity.getSupplys().setTotalSupplyAmount(totalSupplyAmount);
+                        }
+                }
+
+                entity.setPayment(PaymentDTO.builder()
+                                .paymentLink(paymentLink)
+                                .qrCode(qrCode)
+                                .qrCodeBase64(qrCodeBase64)
+                                .build());
+
+                if (paymentLink != null && !paymentLink.isBlank()) {
+                        entity.setPaymentLink(paymentLink);
+                }
+
+                if (ServiceOrderStatus.EM_DIAGNOSTICO.equals(previousStatus)) {
+                        entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
+
+                        logStatusChange(
+                                        entity,
+                                        previousStatus,
+                                        ServiceOrderStatus.AGUARDANDO_APROVACAO);
+                }
+
+                ServiceOrder saved = this.save(entity);
+
+                log.info(
+                                "Budget applied to service order id: {}. Status: {}",
+                                id,
+                                saved.getStatus());
+
+                return saved;
         }
-
-        if (entity.getSupplys() != null && totalSupplyAmount != null) {
-            entity.getSupplys().setTotalSupplyAmount(totalSupplyAmount);
-        }
-
-        if (paymentLink != null && !paymentLink.isBlank()) {
-            entity.setPaymentLink(paymentLink);
-        }
-
-        if (!ServiceOrderStatus.AGUARDANDO_APROVACAO.equals(previousStatus)) {
-            entity.setStatus(ServiceOrderStatus.AGUARDANDO_APROVACAO);
-
-            logStatusChange(
-                    entity,
-                    previousStatus,
-                    ServiceOrderStatus.AGUARDANDO_APROVACAO
-            );
-        }
-
-        ServiceOrder saved = this.save(entity);
-
-        log.info(
-                "Budget applied to service order id: {}. Status: {}",
-                id,
-                saved.getStatus()
-        );
-
-        return saved;
-    }
 
         public ServiceOrder startLabor(
                         String id,
@@ -903,7 +998,7 @@ public class ServiceOrderService {
                         case AGUARDANDO_APROVACAO ->
                                 entity.getClientSendDate();
 
-                        case APROVADA ->
+                        case PENDENT_PAGAMENTO, APROVADA ->
                                 entity.getApprovalDate();
 
                         case EM_EXECUCAO ->

@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sns.SnsClient;
+import software.amazon.awssdk.services.sns.SnsClientBuilder;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 
@@ -37,6 +39,27 @@ public class AwsSqsConfig {
         log.info("Configuring SqsClient. region={}, endpointOverride={}", awsRegion, awsEndpoint);
 
         SqsClientBuilder builder = SqsClient.builder()
+                .region(Region.of(awsRegion));
+
+        if (awsEndpoint != null && !awsEndpoint.isBlank()) {
+            builder.endpointOverride(URI.create(awsEndpoint));
+        }
+
+        if (awsAccessKey != null && !awsAccessKey.isBlank() && awsSecretKey != null && !awsSecretKey.isBlank()) {
+            builder.credentialsProvider(
+                    StaticCredentialsProvider.create(AwsBasicCredentials.create(awsAccessKey, awsSecretKey))
+            );
+        }
+
+        return builder.build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SnsClient.class)
+    public SnsClient snsClient() {
+        log.info("Configuring SnsClient. region={}, endpointOverride={}", awsRegion, awsEndpoint);
+
+        SnsClientBuilder builder = SnsClient.builder()
                 .region(Region.of(awsRegion));
 
         if (awsEndpoint != null && !awsEndpoint.isBlank()) {

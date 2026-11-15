@@ -49,19 +49,14 @@ public class BudgetGeneratedEventListener extends AbstractSqsQueueListener<Budge
     protected void processPayload(BudgetGeneratedEventMessage message) {
         log.info("Processando eventBugetGenerated para serviceOrderId={}, totalBudgetAmount={}, paymentLink={}",
                 message.getServiceOrderId(), message.getTotalBudgetAmount(), message.getPaymentLink());
-        if (message.getPaymentLink() != null && !message.getPaymentLink().isBlank()) {
-            serviceOrderService.applyBudget(
-                    message.getServiceOrderId(),
-                    message.getTotalLaborAmount(),
-                    message.getTotalSupplyAmount(),
-                    message.getTotalBudgetAmount(),
-                    message.getPaymentLink());
-        } else {
-            serviceOrderService.applyBudget(
-                    message.getServiceOrderId(),
-                    message.getTotalLaborAmount(),
-                    message.getTotalSupplyAmount(),
-                    message.getTotalBudgetAmount());
-        }
+        serviceOrderService.applyBudget(
+                message.getServiceOrderId(),
+                message.getTotalLaborAmount(),
+                message.getTotalSupplyAmount(),
+                message.getTotalTaxesAmount(),
+                message.getTotalBudgetAmount(),
+                message.getPaymentLink(),
+                message.getQrCode(),
+                message.getQrCodeBase64());
     }
 }
