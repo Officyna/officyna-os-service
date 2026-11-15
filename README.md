@@ -20,6 +20,7 @@ O **`officyna-os-service`** é o microsserviço responsável pelo núcleo de ate
 * [Instruções de Execução](#-instruções-de-execução)
 * [Variáveis de Ambiente](#-variáveis-de-ambiente)
 * [Testes e Qualidade](#-testes-e-qualidade)
+  * [Evidência dos Testes no Sonar](#-evidência-dos-testes-no-sonar)
 * [CI/CD e Deploy (Kubernetes / EKS)](#-cicd-e-deploy-kubernetes--eks)
 
 ---
@@ -374,6 +375,21 @@ Análise SonarQube local (opcional):
 docker compose --profile sonar up -d sonarqube
 ./mvnw clean verify sonar:sonar -Dsonar.token=<SEU_TOKEN_SONAR>
 ```
+
+### 📊 Evidência dos Testes no Sonar
+
+Abaixo está o resumo da análise estática de código e cobertura de testes do **`officyna-os-service`** no **SonarCloud** (branch `main`):
+
+| Indicador | Resultado | Classificação / Meta |
+| :--- | :---: | :---: |
+| **Security (Segurança)** | 2 *Open issues* | 🟠 **D** |
+| **Reliability (Confiabilidade)** | 5 *Open issues* | 🟡 **C** |
+| **Maintainability (Manutenibilidade)** | 99 *Open issues* | 🟢 **A** |
+| **Coverage (Cobertura de Testes)** | **83.8%** (2.3k linhas elegíveis) | 🟢 **≥ 80% (Aprovado)** |
+| **Duplications (Duplicações)** | **0.0%** (7.6k linhas) | 🟢 **0%** |
+| **Security Hotspots** | 0 | 🟢 **Aprovado** |
+
+![alt text](image.png)
 
 ---
 
